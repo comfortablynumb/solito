@@ -27,6 +27,10 @@ function buildAutonomousAgentSection(loopMaxMinutes: number): string {
     `Each loop iteration has a maximum duration of ${loopMaxMinutes} minutes.`,
     "At the end of each iteration, your session will end and a NEW session will start.",
     "You will NOT have access to your previous conversation history.",
+    "",
+    "IMPORTANT: Do NOT ask the user any questions. Everything you need is provided upfront.",
+    "Work autonomously. The only messages you will receive from the user are time warnings",
+    "telling you to wrap up, commit, or rollback.",
   ].join("\n");
 }
 

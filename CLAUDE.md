@@ -4,14 +4,14 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 
 ## Structure
 
-- `src/cli.ts` - Entry point: parses command, loads config, dispatches to handler. For named commands, writes resolved prompt to file and passes file reference to agent (avoids ENAMETOOLONG)
+- `src/cli.ts` - Entry point: parses command, loads config, dispatches to handler. For named commands, writes resolved prompt to file (avoids ENAMETOOLONG) and injects `max_turn_time_minutes` as built-in variable from loop config
 - `src/args.ts` - Subcommand routing (run, config, help), shows available built-in commands in usage
 - `src/agents/agent.ts` - `Agent` interface, `AgentRunOptions` (appendSystemPrompt, loopMaxMinutes, passthrough, progressFilePath)
 - `src/agents/registry.ts` - Agent factory registry with `registerAgent()` / `getAgent()`
-- `src/agents/claude.ts` - Claude agent: streams JSON, parses output, builds system prompt
+- `src/agents/claude.ts` - Claude agent: streams JSON (input+output), parses output, builds system prompt, uses `--input-format stream-json` for stdin messaging
 - `src/agents/codex.ts` - Codex agent: `codex --prompt <prompt>`
 - `src/agents/prompt-builder.ts` - Builds autonomous agent system prompt with loop/task context, progress file instructions
-- `src/commands/run-command.ts` - Executes agent in continuation loop with progress file persistence, soft timeout, minute ticker, Windows-aware signal forwarding
+- `src/commands/run-command.ts` - Executes agent in continuation loop with progress file persistence, 3-stage escalating timeout warnings (soft/urgent/kill) sent to agent via stdin, minute ticker, Windows-aware signal forwarding
 - `src/commands/config-command.ts` - Displays current config as YAML
 - `src/commands/command-resolver.ts` - `CommandResolver` interface, `DefaultCommandResolver`: resolves named commands to prompt file content with variable interpolation
 - `src/config/config.ts` - `SolitoConfig`, `AgentConfig`, `LoopConfig`, `CommandConfig`, `CommandVariables`, `ConfigLoader` types
@@ -34,7 +34,7 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 - `src/filesystem/default-filesystem.ts` - Real `fs/promises` implementation (ENOENT-specific error handling)
 - `src/process/spawner.ts` - `ProcessSpawner` interface
 - `src/process/default-spawner.ts` - Real `child_process.spawn` implementation
-- `src/process/streaming-spawner.ts` - `StreamingProcessSpawner` interface (line-by-line)
+- `src/process/streaming-spawner.ts` - `StreamingProcessSpawner` interface (line-by-line), `StdinMode` type (inherit/ignore/pipe)
 - `src/process/default-streaming-spawner.ts` - Real streaming spawner with NDJSON buffering
 - `src/process/output-buffer.ts` - Memory-limited output buffer (50 MB cap)
 - `src/util/command.ts` - `commandExists()` utility

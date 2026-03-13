@@ -60,7 +60,10 @@ async function main(): Promise<void> {
     const commandWorkDir = await workspace.ensureCommandDir(resolved.commandName);
     progressDir = commandWorkDir;
     const postResolver = new DefaultVariableResolver({
-      builtIns: { command_work_dir: commandWorkDir },
+      builtIns: {
+        command_work_dir: commandWorkDir,
+        max_turn_time_minutes: String(config.loop.max_turn_time_minutes),
+      },
     });
     prompt = postResolver.resolve(prompt);
 
@@ -80,6 +83,7 @@ async function main(): Promise<void> {
     loopConfig: config.loop,
     passthrough: command.passthrough,
     progressDir,
+    verbose: command.verbose,
   });
 
   process.exit(code);

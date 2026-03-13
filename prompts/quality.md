@@ -290,8 +290,8 @@ When hitting the stagnation limit, you MUST completely change your approach:
 
 ### 4.9 Time budget
 
-Each loop (steps 4.1 through 4.7) should take no more than **${var:thresholds.loop_timeout_minutes} minutes** of wall-clock time. If
-test execution alone exceeds ${var:thresholds.loop_timeout_minutes} minutes, that is acceptable — the budget applies to your thinking
+Each loop (steps 4.1 through 4.7) should take no more than **${var:max_turn_time_minutes} minutes** of wall-clock time. If
+test execution alone exceeds ${var:max_turn_time_minutes} minutes, that is acceptable — the budget applies to your thinking
 and implementation time, not to waiting on tools.
 
 If the test suite takes more than **${var:thresholds.test_timeout_minutes} minutes**, kill it, log `status=TIMEOUT`, and treat it as
@@ -645,7 +645,6 @@ optional — omitted fields use the defaults shown below.
     "stagnation_switch_after": 3,
     "stagnation_reassess_after": 5,
     "stagnation_stop_after": 10,
-    "loop_timeout_minutes": 10,
     "test_timeout_minutes": 10,
     "checkpoint_every_n_commits": 10
   },

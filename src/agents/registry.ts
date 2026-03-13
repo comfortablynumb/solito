@@ -6,6 +6,7 @@ import { DefaultStreamingSpawner } from "../process/default-streaming-spawner";
 import { JsonStreamParser } from "../stream/parser";
 import { ConsoleStreamFormatter } from "../stream/formatter";
 import { TerminalMarkdownRenderer } from "../stream/markdown-renderer";
+import { ConsoleLogger } from "../util/logger";
 
 export interface GetAgentOptions {
   verbose?: boolean;
@@ -50,6 +51,8 @@ function registerBuiltinAgents(): void {
         verbose: options?.verbose,
         markdownRenderer,
       }),
+      verbose: options?.verbose,
+      logger: new ConsoleLogger(),
     }),
   );
 

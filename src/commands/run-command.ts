@@ -13,6 +13,7 @@ const DEFAULT_CONTINUE_PROMPT = "Continue where you left off.";
 const DEFAULT_TIMEOUT_PROMPT =
   "You have reached the time limit for this loop. Please finish what you are currently doing and provide a summary of your progress.";
 const PROGRESS_FILE_NAME = "loop-progress.md";
+const MAX_CONSECUTIVE_FAILURES = 3;
 
 export interface RunCommandParams {
   agent: Agent;
@@ -21,15 +22,17 @@ export interface RunCommandParams {
   loopConfig?: LoopConfig;
   passthrough?: string[];
   progressDir?: string;
+  verbose?: boolean;
   logger?: Logger;
   fs?: FileSystem;
   maxIterations?: number;
 }
 
 export async function executeRunCommand(params: RunCommandParams): Promise<number> {
-  const { agent, prompt, agentConfig, loopConfig, passthrough, maxIterations } = params;
+  const { agent, prompt, agentConfig, loopConfig, passthrough, maxIterations, verbose } = params;
   const logger = params.logger ?? new ConsoleLogger();
   const fs = params.fs ?? new DefaultFileSystem();
+  const verboseLogger = verbose ? logger : undefined;
 
   const available = await agent.isAvailable();
 
@@ -51,6 +54,7 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
   let isFinalTurn = false;
   let iterationCount = 0;
   let lastExitCode = 0;
+  let consecutiveFailures = 0;
 
   try {
     while (true) {
@@ -84,6 +88,7 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
         timeoutMs,
         child: handle.child,
         logger,
+        verboseLogger,
       });
       const cleanupTicker = setupMinuteTicker(logger, startTime);
 
@@ -98,7 +103,20 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
         lastExitCode = result.exitCode;
 
         if (result.exitCode !== 0) {
-          logger.info(`Agent exited with code ${result.exitCode}.`);
+          logAgentError(logger, result.exitCode, result.stderr);
+
+          if (isFirstRun) {
+            return result.exitCode;
+          }
+
+          consecutiveFailures++;
+
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            logger.error(`Agent failed ${MAX_CONSECUTIVE_FAILURES} times in a row. Stopping.`);
+            return result.exitCode;
+          }
+        } else {
+          consecutiveFailures = 0;
         }
       } finally {
         cleanupSignals();
@@ -185,6 +203,16 @@ async function readProgressFile(fs: FileSystem, filePath: string): Promise<strin
   }
 }
 
+function logAgentError(logger: Logger, exitCode: number, stderr: string): void {
+  logger.error(`Agent exited with code ${exitCode}.`);
+
+  const trimmed = stderr.trim();
+
+  if (trimmed) {
+    logger.error(trimmed);
+  }
+}
+
 async function cleanupProgressFile(fs: FileSystem, filePath: string): Promise<void> {
   try {
     const exists = await fs.exists(filePath);
@@ -208,16 +236,66 @@ function getTimeoutMs(loopConfig?: LoopConfig): number | undefined {
 const WARNING_URGENT_OFFSET_MS = 2 * 60 * 1000;
 const WARNING_FINAL_OFFSET_MS = 5 * 60 * 1000;
 
+interface WriteStdinOptions {
+  child: ChildProcess;
+  text: string;
+  logger?: Logger;
+}
+
+function writeStdinMessage(options: WriteStdinOptions): void {
+  const { child, text, logger } = options;
+
+  if (!child.stdin || child.stdin.destroyed) {
+    return;
+  }
+
+  const message = JSON.stringify({
+    type: "user",
+    message: { role: "user", content: text },
+  });
+
+  if (logger) {
+    logger.info(`${ANSI.DIM}[stdin] ${message}${ANSI.RESET}`);
+  }
+
+  child.stdin.write(message + "\n");
+}
+
+type WarningLevel = "soft" | "urgent" | "final";
+
+function buildWarningText(level: WarningLevel, timeoutMs: number): string {
+  const minutes = timeoutMs / 60000;
+
+  if (level === "soft") {
+    return [
+      `Time limit reached (${minutes} min). Please start wrapping up.`,
+      "If your current change measurably improves metrics (coverage or complexity), commit it now.",
+      "If not, rollback with: git checkout -- . && git clean -fd",
+    ].join("\n");
+  }
+
+  if (level === "urgent") {
+    const remaining = (WARNING_FINAL_OFFSET_MS - WARNING_URGENT_OFFSET_MS) / 60000;
+    return [
+      `URGENT: Only ${remaining} minutes remaining before forced stop.`,
+      "Commit now if metrics improved. Otherwise rollback immediately — do NOT leave uncommitted partial changes.",
+    ].join("\n");
+  }
+
+  return "FINAL WARNING: Time expired. Forcing stop now. Any uncommitted changes will be lost.";
+}
+
 interface TimeoutWarningsOptions {
   timedOut: { value: boolean };
   interrupted: { value: boolean };
   timeoutMs?: number;
   child: ChildProcess;
   logger: Logger;
+  verboseLogger?: Logger;
 }
 
 function setupTimeoutWarnings(options: TimeoutWarningsOptions): () => void {
-  const { timedOut, interrupted, timeoutMs, child, logger } = options;
+  const { timedOut, interrupted, timeoutMs, child, logger, verboseLogger } = options;
 
   if (!timeoutMs) {
     return () => {};
@@ -234,6 +312,7 @@ function setupTimeoutWarnings(options: TimeoutWarningsOptions): () => void {
       `${ANSI.YELLOW}If not, rollback with: git checkout -- . && git clean -fd${ANSI.RESET}`,
     ];
     logger.info(`\n${sep}\n${lines.join("\n")}\n${sep}`);
+    writeStdinMessage({ child, text: buildWarningText("soft", timeoutMs), logger: verboseLogger });
   }, timeoutMs));
 
   timers.push(setTimeout(() => {
@@ -243,12 +322,14 @@ function setupTimeoutWarnings(options: TimeoutWarningsOptions): () => void {
       `${ANSI.RED}${ANSI.BOLD}Commit now if metrics improved. Otherwise rollback immediately — do NOT leave uncommitted partial changes.${ANSI.RESET}`,
     ];
     logger.info(`\n${sep}\n${lines.join("\n")}\n${sep}`);
+    writeStdinMessage({ child, text: buildWarningText("urgent", timeoutMs), logger: verboseLogger });
   }, timeoutMs + WARNING_URGENT_OFFSET_MS));
 
   timers.push(setTimeout(() => {
     interrupted.value = true;
     const msg = `${ANSI.RED}${ANSI.BOLD}${ICONS.STOP} FINAL WARNING: Time expired. Forcing stop now. Any uncommitted changes will be lost.${ANSI.RESET}`;
     logger.info(`\n${sep}\n${msg}\n${sep}`);
+    writeStdinMessage({ child, text: buildWarningText("final", timeoutMs), logger: verboseLogger });
     killProcessTree(child);
   }, timeoutMs + WARNING_FINAL_OFFSET_MS));
 

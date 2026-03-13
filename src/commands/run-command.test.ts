@@ -66,27 +66,39 @@ describe("executeRunCommand", () => {
     }));
   });
 
-  it("continues looping on non-zero exit code", async () => {
-    const fail: AgentResult = { exitCode: 42, stdout: "", stderr: "err" };
-    const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
-    const agent = createSequenceMockAgent([fail, ok]);
+  it("exits immediately on first-run failure", async () => {
+    const fail: AgentResult = { exitCode: 42, stdout: "", stderr: "something broke" };
+    const agent = createMockAgent(fail);
     const fs = createMockFileSystem();
 
     const code = await executeRunCommand({ agent, prompt: "do stuff", maxIterations: 2, fs });
 
-    expect(agent.run).toHaveBeenCalledTimes(2);
+    expect(agent.run).toHaveBeenCalledTimes(1);
+    expect(code).toBe(42);
+  });
+
+  it("continues looping on non-first-run failure", async () => {
+    const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+    const fail: AgentResult = { exitCode: 1, stdout: "", stderr: "" };
+    const agent = createSequenceMockAgent([ok, fail, ok]);
+    const fs = createMockFileSystem();
+
+    const code = await executeRunCommand({ agent, prompt: "do stuff", maxIterations: 3, fs });
+
+    expect(agent.run).toHaveBeenCalledTimes(3);
     expect(code).toBe(0);
   });
 
-  it("logs non-zero exit code from agent", async () => {
-    const fail: AgentResult = { exitCode: 42, stdout: "", stderr: "err" };
+  it("logs non-zero exit code and stderr from agent", async () => {
+    const fail: AgentResult = { exitCode: 42, stdout: "", stderr: "auth token expired" };
     const agent = createMockAgent(fail);
     const logger = createMockLogger();
 
     await executeRunCommand({ agent, prompt: "do stuff", maxIterations: 1, logger });
 
-    const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]).join("\n");
-    expect(allLogs).toContain("exited with code 42");
+    const allErrors = logger.error.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+    expect(allErrors).toContain("exited with code 42");
+    expect(allErrors).toContain("auth token expired");
   });
 
   it("passes passthrough args to agent", async () => {
@@ -532,15 +544,33 @@ describe("executeRunCommand", () => {
       expect((agent.run as jest.Mock).mock.calls[1][0]).toContain("Keep going!");
     });
 
-    it("continues looping even on non-zero exit code", async () => {
-      const fail: AgentResult = { exitCode: 1, stdout: "", stderr: "" };
+    it("continues looping on non-first-run failure", async () => {
       const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
-      const agent = createSequenceMockAgent([fail, ok]);
+      const fail: AgentResult = { exitCode: 1, stdout: "", stderr: "" };
+      const agent = createSequenceMockAgent([ok, fail, ok]);
       const fs = createMockFileSystem();
 
-      await executeRunCommand({ agent, prompt: "do stuff", fs, maxIterations: 2 });
+      await executeRunCommand({ agent, prompt: "do stuff", fs, maxIterations: 3 });
 
-      expect(agent.run).toHaveBeenCalledTimes(2);
+      expect(agent.run).toHaveBeenCalledTimes(3);
+    });
+
+    it("stops after max consecutive failures", async () => {
+      const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+      const fail: AgentResult = { exitCode: 1, stdout: "", stderr: "error" };
+      const agent = createSequenceMockAgent([ok, fail, fail, fail, ok]);
+      const fs = createMockFileSystem();
+      const logger = createMockLogger();
+
+      const code = await executeRunCommand({
+        agent, prompt: "do stuff", fs, maxIterations: 5, logger,
+      });
+
+      expect(agent.run).toHaveBeenCalledTimes(4);
+      expect(code).toBe(1);
+
+      const allErrors = logger.error.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+      expect(allErrors).toContain("failed 3 times in a row");
     });
 
     it("includes progress file content in continuation prompt", async () => {

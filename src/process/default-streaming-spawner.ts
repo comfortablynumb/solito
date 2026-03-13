@@ -4,11 +4,10 @@ import { OutputBuffer } from "./output-buffer";
 
 export class DefaultStreamingSpawner implements StreamingProcessSpawner {
   spawn(options: StreamingSpawnOptions): StreamingSpawnHandle {
-    const { command, args, onLine, inheritStdin } = options;
-    const stdin = inheritStdin ? "inherit" as const : "ignore" as const;
+    const { command, args, onLine, stdinMode = "ignore" } = options;
 
     const child = spawn(command, args, {
-      stdio: [stdin, "pipe", "pipe"],
+      stdio: [stdinMode, "pipe", "pipe"],
     });
 
     const result = new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve, reject) => {

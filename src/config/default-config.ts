@@ -24,7 +24,6 @@ export function createDefaultConfig(): SolitoConfig {
         variables: {
           thresholds: {
             min_coverage_pct_enhancement_per_loop: 0.5,
-            loop_timeout_minutes: 10,
             test_timeout_minutes: 10,
           },
           max_loops_without_enhancement: 3,
@@ -37,7 +36,6 @@ export function createDefaultConfig(): SolitoConfig {
           max_consecutive_failures: 5,
           thresholds: {
             min_coverage_pct_enhancement_per_loop: 0.5,
-            loop_timeout_minutes: 10,
             test_timeout_minutes: 10,
           },
           max_loops_without_enhancement: 3,
