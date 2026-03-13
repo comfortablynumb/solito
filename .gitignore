@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.js.map
+*.d.ts
+!jest.config.js
+.env
+/.idea
+/.claudito
+/.claude
+/.solito
