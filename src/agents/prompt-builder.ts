@@ -6,13 +6,18 @@ export interface PromptBuilderParams {
   userSystemPrompt?: string;
   progressFilePath?: string;
   isFirstIteration?: boolean;
+  workDir?: string;
 }
 
 export function buildSystemPrompt(params: PromptBuilderParams): string {
-  const { userPrompt, loopMaxMinutes, userSystemPrompt, progressFilePath, isFirstIteration } = params;
+  const { userPrompt, loopMaxMinutes, userSystemPrompt, progressFilePath, isFirstIteration, workDir } = params;
   const parts: string[] = [];
 
   parts.push(buildAutonomousAgentSection(loopMaxMinutes));
+
+  if (workDir) {
+    parts.push(buildWorkDirSection(workDir));
+  }
 
   if (isFirstIteration) {
     parts.push(buildToolCheckSection());
@@ -67,6 +72,20 @@ function buildAutonomousAgentSection(loopMaxMinutes: number): string {
     "   Then investigate and fix the root cause of the slowness before re-running.",
     "5. Record slow tests in the progress file as URGENT for the next iteration.",
     "NEVER re-run a slow test suite hoping it will pass faster. Fix the slowness first.",
+  ].join("\n");
+}
+
+function buildWorkDirSection(workDir: string): string {
+  return [
+    "CRITICAL — TEMPORARY FILES:",
+    `Your working directory for temporary files, scripts, logs, and any generated artifacts is: ${workDir}`,
+    "You MUST place ALL temporary files in this directory. NEVER create temporary files in the project root.",
+    "Examples of files that MUST go in the working directory:",
+    "- Helper scripts (e.g., complexity analysis scripts, test runners)",
+    "- Log files, JSON reports, TSV logs",
+    "- Any file that is not part of the project's source code",
+    "The ONLY files you should create in the project root are files that belong to the project itself",
+    "(source code, configs like eslint.config.mjs, .gitignore, etc.).",
   ].join("\n");
 }
 

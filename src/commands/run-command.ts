@@ -46,6 +46,7 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
   const continuePrompt = loopConfig?.continue_prompt ?? DEFAULT_CONTINUE_PROMPT;
   const timeoutPrompt = loopConfig?.timeout_prompt ?? DEFAULT_TIMEOUT_PROMPT;
   const interrupted = { value: false };
+  const stopAfterIteration = { value: false };
   const timedOut = { value: false };
   const startTime = Date.now();
 
@@ -84,7 +85,9 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
       const handle = agent.run(currentPrompt, options);
       interrupted.value = false;
       timedOut.value = false;
-      const cleanupSignals = setupSignalForwarding(handle.child, interrupted, logger);
+      const cleanupSignals = setupSignalForwarding({
+        child: handle.child, interrupted, stopAfterIteration, logger,
+      });
       const cleanupTimeout = setupTimeoutWarnings({
         timedOut,
         interrupted,
@@ -130,6 +133,11 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
         cleanupSignals();
         cleanupTimeout();
         cleanupTicker();
+      }
+
+      if (stopAfterIteration.value) {
+        writeStopBanner(logger, startTime);
+        return lastExitCode;
       }
 
       const nextPrompt = await buildContinuationPrompt({
@@ -368,6 +376,13 @@ function writeInterruptBanner(logger: Logger, startTime: number): void {
   logger.info(`\n${sep}\n${message}\n${sep}`);
 }
 
+function writeStopBanner(logger: Logger, startTime: number): void {
+  const elapsed = formatElapsed(Date.now() - startTime);
+  const sep = `${ANSI.DIM}${SEPARATOR}${ANSI.RESET}`;
+  const message = `${ANSI.YELLOW}${ANSI.BOLD}${ICONS.STOP} Stopped after ${elapsed}. Iteration completed gracefully.${ANSI.RESET}`;
+  logger.info(`\n${sep}\n${message}\n${sep}`);
+}
+
 function writeUserPrompt(prompt: string, logger: Logger): void {
   const separator = `\n${ANSI.DIM}${SEPARATOR}${ANSI.RESET}\n`;
   const header = `${ANSI.CYAN}${ICONS.USER} User:${ANSI.RESET}`;
@@ -409,24 +424,28 @@ function formatTime(date: Date): string {
   return `${hours}:${minutes}:${seconds}`;
 }
 
-function setupSignalForwarding(
-  child: ChildProcess,
-  interrupted: { value: boolean },
-  logger: Logger,
-): () => void {
+interface SignalForwardingOptions {
+  child: ChildProcess;
+  interrupted: { value: boolean };
+  stopAfterIteration: { value: boolean };
+  logger: Logger;
+}
+
+function setupSignalForwarding(options: SignalForwardingOptions): () => void {
+  const { child, interrupted, stopAfterIteration, logger } = options;
   let sigintCount = 0;
 
   const onSigint = () => {
     sigintCount++;
-    interrupted.value = true;
     const sep = `${ANSI.DIM}${SEPARATOR}${ANSI.RESET}`;
 
     if (sigintCount === 1) {
-      logger.info(`\n${sep}\n${ANSI.RED}${ANSI.BOLD}${ICONS.STOP} CTRL+C received — stopping agent...${ANSI.RESET}\n${sep}`);
-      killProcessTree(child);
+      stopAfterIteration.value = true;
+      logger.info(`\n${sep}\n${ANSI.YELLOW}${ANSI.BOLD}${ICONS.STOP} CTRL+C received — will stop after current iteration finishes. Press CTRL+C again to force quit.${ANSI.RESET}\n${sep}`);
       return;
     }
 
+    interrupted.value = true;
     logger.info(`\n${sep}\n${ANSI.RED}${ANSI.BOLD}${ICONS.STOP} CTRL+C received again — force quitting${ANSI.RESET}\n${sep}`);
     killProcessTree(child);
     process.exit(130);

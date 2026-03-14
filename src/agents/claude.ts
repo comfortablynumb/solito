@@ -8,6 +8,7 @@ import { commandExists } from "../util/command";
 import { buildSystemPrompt } from "./prompt-builder";
 import { ITERATION_COMPLETE_MARKER, EXIT_MARKER } from "../constants";
 import { killProcessTree } from "../process/kill-process-tree";
+import * as path from "path";
 import { CliMessage, CliStreamEvent } from "../stream/events";
 
 export interface ClaudeAgentDeps {
@@ -113,12 +114,15 @@ export class ClaudeAgent implements Agent {
   private resolveSystemPrompt(prompt: string, options?: AgentRunOptions): string {
     const loopMaxMinutes = options?.loopMaxMinutes ?? DEFAULT_LOOP_MAX_MINUTES;
 
+    const workDir = options?.progressFilePath ? path.dirname(options.progressFilePath) : undefined;
+
     return buildSystemPrompt({
       userPrompt: prompt,
       loopMaxMinutes,
       userSystemPrompt: options?.appendSystemPrompt,
       progressFilePath: options?.progressFilePath,
       isFirstIteration: options?.isFirstIteration,
+      workDir,
     });
   }
 

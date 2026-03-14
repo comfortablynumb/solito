@@ -193,6 +193,27 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("iteration is considered a FAILURE");
   });
 
+  it("includes work dir instructions when workDir is provided", () => {
+    const prompt = buildSystemPrompt({
+      userPrompt: "do stuff",
+      loopMaxMinutes: 5,
+      workDir: "/project/.solito/commands/quality",
+    });
+
+    expect(prompt).toContain("TEMPORARY FILES");
+    expect(prompt).toContain("/project/.solito/commands/quality");
+    expect(prompt).toContain("NEVER create temporary files in the project root");
+  });
+
+  it("excludes work dir instructions when workDir is not provided", () => {
+    const prompt = buildSystemPrompt({
+      userPrompt: "do stuff",
+      loopMaxMinutes: 5,
+    });
+
+    expect(prompt).not.toContain("TEMPORARY FILES");
+  });
+
   it("does not append empty user system prompt", () => {
     const prompt = buildSystemPrompt({
       userPrompt: "do stuff",
