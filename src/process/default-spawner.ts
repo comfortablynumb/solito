@@ -4,8 +4,11 @@ import { OutputBuffer } from "./output-buffer";
 
 export class DefaultProcessSpawner implements ProcessSpawner {
   spawn(command: string, args: string[]): SpawnHandle {
+    const isWindows = process.platform === "win32";
+
     const child = spawn(command, args, {
       stdio: ["inherit", "pipe", "pipe"],
+      detached: !isWindows,
     });
 
     const result = new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve, reject) => {

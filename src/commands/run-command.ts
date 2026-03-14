@@ -1,4 +1,4 @@
-import { ChildProcess, execSync } from "child_process";
+import { ChildProcess } from "child_process";
 import { Agent, AgentRunOptions } from "../agents/agent";
 import { AgentConfig, LoopConfig } from "../config/config";
 import { FileSystem } from "../filesystem/filesystem";
@@ -6,6 +6,7 @@ import { DefaultFileSystem } from "../filesystem/default-filesystem";
 import { Logger, ConsoleLogger } from "../util/logger";
 import { getConfigDir } from "../util/paths";
 import { ANSI, SEPARATOR, ICONS } from "../constants";
+import { killProcessTree } from "../process/kill-process-tree";
 import * as path from "path";
 
 const IS_WINDOWS = process.platform === "win32";
@@ -42,7 +43,6 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
   }
 
   const progressFilePath = getProgressFilePath(params.progressDir);
-  const options = buildRunOptions({ agentConfig, loopConfig, passthrough, progressFilePath });
   const continuePrompt = loopConfig?.continue_prompt ?? DEFAULT_CONTINUE_PROMPT;
   const timeoutPrompt = loopConfig?.timeout_prompt ?? DEFAULT_TIMEOUT_PROMPT;
   const interrupted = { value: false };
@@ -78,6 +78,9 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
         writeUserPrompt(currentPrompt, logger);
       }
 
+      const options = buildRunOptions({
+        agentConfig, loopConfig, passthrough, progressFilePath, isFirstIteration: isFirstRun,
+      });
       const handle = agent.run(currentPrompt, options);
       interrupted.value = false;
       timedOut.value = false;
@@ -100,9 +103,14 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
           return 130;
         }
 
-        lastExitCode = result.exitCode;
+        if (handle.exitRequested.value) {
+          logger.error("Agent requested exit. Cannot continue without required tools.");
+          return 1;
+        }
 
-        if (result.exitCode !== 0) {
+        lastExitCode = handle.iterationComplete.value ? 0 : result.exitCode;
+
+        if (lastExitCode !== 0) {
           logAgentError(logger, result.exitCode, result.stderr);
 
           if (isFirstRun) {
@@ -146,6 +154,7 @@ interface BuildRunOptionsParams {
   loopConfig?: LoopConfig;
   passthrough?: string[];
   progressFilePath: string;
+  isFirstIteration?: boolean;
 }
 
 function buildRunOptions(params: BuildRunOptionsParams): AgentRunOptions {
@@ -154,6 +163,7 @@ function buildRunOptions(params: BuildRunOptionsParams): AgentRunOptions {
     loopMaxMinutes: params.loopConfig?.max_turn_time_minutes,
     passthrough: params.passthrough,
     progressFilePath: params.progressFilePath,
+    isFirstIteration: params.isFirstIteration,
   };
 }
 
@@ -451,20 +461,3 @@ function isInterruptExitCode(exitCode: number): boolean {
   return exitCode === UNIX_SIGINT_EXIT || exitCode === WINDOWS_CTRL_C_EXIT;
 }
 
-function killProcessTree(child: ChildProcess): void {
-  if (child.killed || !child.pid) {
-    return;
-  }
-
-  if (IS_WINDOWS) {
-    try {
-      execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore" });
-    } catch {
-      child.kill("SIGKILL");
-    }
-
-    return;
-  }
-
-  child.kill("SIGTERM");
-}

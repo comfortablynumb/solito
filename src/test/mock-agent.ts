@@ -1,15 +1,24 @@
 import { Agent, AgentResult } from "../agents/agent";
 import { createMockChild } from "./mock-child-process";
 
-export function createMockAgent(result: AgentResult, available = true): Agent {
+function mockHandle(result: AgentResult) {
   const child = createMockChild();
+  return {
+    child,
+    result: Promise.resolve(result),
+    iterationComplete: { value: false },
+    exitRequested: { value: false },
+  };
+}
+
+export function createMockAgent(result: AgentResult, available = true): Agent {
   const stopResult: AgentResult = { exitCode: 1, stdout: "", stderr: "" };
 
   return {
     name: "mock-agent",
     run: jest.fn()
-      .mockReturnValueOnce({ child, result: Promise.resolve(result) })
-      .mockReturnValue({ child, result: Promise.resolve(stopResult) }),
+      .mockReturnValueOnce(mockHandle(result))
+      .mockReturnValue(mockHandle(stopResult)),
     isAvailable: jest.fn().mockResolvedValue(available),
   };
 }
@@ -18,15 +27,14 @@ export function createSequenceMockAgent(
   results: AgentResult[],
   available = true,
 ): Agent {
-  const child = createMockChild();
   const mock = jest.fn();
 
   for (const result of results) {
-    mock.mockReturnValueOnce({ child, result: Promise.resolve(result) });
+    mock.mockReturnValueOnce(mockHandle(result));
   }
 
   const stopResult: AgentResult = { exitCode: 1, stdout: "", stderr: "" };
-  mock.mockReturnValue({ child, result: Promise.resolve(stopResult) });
+  mock.mockReturnValue(mockHandle(stopResult));
 
   return {
     name: "mock-agent",

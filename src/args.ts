@@ -5,6 +5,7 @@ export interface RunCommand {
   kind: "run";
   agentName?: string;
   prompt: string;
+  rawPrompt: boolean;
   verbose: boolean;
   passthrough: string[];
 }
@@ -31,14 +32,18 @@ export function parseArgs(argv: string[]): CliCommand {
     return { kind: "help" };
   }
 
-  if (subcommand === "run") {
-    return parseRunArgs(args.slice(1));
+  if (subcommand === "prompt") {
+    return parseRunArgs(args.slice(1), true);
   }
 
-  return parseRunArgs(args);
+  if (subcommand === "run") {
+    return parseRunArgs(args.slice(1), false);
+  }
+
+  return parseRunArgs(args, false);
 }
 
-function parseRunArgs(args: string[]): CliCommand {
+function parseRunArgs(args: string[], rawPrompt: boolean): CliCommand {
   const { solito: solitoArgs, passthrough } = splitAtDoubleDash(args);
   let agentName: string | undefined;
   let verbose = false;
@@ -71,7 +76,7 @@ function parseRunArgs(args: string[]): CliCommand {
     return { kind: "help" };
   }
 
-  return { kind: "run", agentName, prompt, verbose, passthrough };
+  return { kind: "run", agentName, prompt, rawPrompt, verbose, passthrough };
 }
 
 function splitAtDoubleDash(args: string[]): { solito: string[]; passthrough: string[] } {
@@ -106,6 +111,7 @@ Usage: solito <command> [options]
 
 Commands:
   run [options] <command|prompt>   Run an agent with a named command or raw prompt
+  prompt [options] <prompt>        Run an agent with a raw prompt (never resolves as command)
   config                           Show current configuration
 
 Available run commands:
@@ -122,6 +128,7 @@ Examples:
   solito run quality
   solito run build
   solito run 'refactor the auth module'
+  solito prompt 'refactor the auth module'
   solito run --agent=claude 'fix the login bug'
   solito run -v 'fix the bug'
   solito run 'fix it' -- --max-turns 5

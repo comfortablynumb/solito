@@ -14,7 +14,7 @@ describe("parseArgs", () => {
       const result = parseArgs(["node", "solito", "run", "fix the bug"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "fix the bug",
-        verbose: false, passthrough: [],
+        rawPrompt: false, verbose: false, passthrough: [],
       });
     });
 
@@ -22,7 +22,7 @@ describe("parseArgs", () => {
       const result = parseArgs(["node", "solito", "run", "--agent", "codex", "do stuff"]);
       expect(result).toEqual({
         kind: "run", agentName: "codex", prompt: "do stuff",
-        verbose: false, passthrough: [],
+        rawPrompt: false, verbose: false, passthrough: [],
       });
     });
 
@@ -30,7 +30,7 @@ describe("parseArgs", () => {
       const result = parseArgs(["node", "solito", "run", "--agent=codex", "do stuff"]);
       expect(result).toEqual({
         kind: "run", agentName: "codex", prompt: "do stuff",
-        verbose: false, passthrough: [],
+        rawPrompt: false, verbose: false, passthrough: [],
       });
     });
 
@@ -38,7 +38,7 @@ describe("parseArgs", () => {
       const result = parseArgs(["node", "solito", "run", "-a", "codex", "do stuff"]);
       expect(result).toEqual({
         kind: "run", agentName: "codex", prompt: "do stuff",
-        verbose: false, passthrough: [],
+        rawPrompt: false, verbose: false, passthrough: [],
       });
     });
 
@@ -46,7 +46,7 @@ describe("parseArgs", () => {
       const result = parseArgs(["node", "solito", "run", "fix", "the", "bug"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "fix the bug",
-        verbose: false, passthrough: [],
+        rawPrompt: false, verbose: false, passthrough: [],
       });
     });
   });
@@ -56,7 +56,7 @@ describe("parseArgs", () => {
       const result = parseArgs(["node", "solito", "run", "--verbose", "do stuff"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "do stuff",
-        verbose: true, passthrough: [],
+        rawPrompt: false, verbose: true, passthrough: [],
       });
     });
 
@@ -64,7 +64,7 @@ describe("parseArgs", () => {
       const result = parseArgs(["node", "solito", "run", "-v", "do stuff"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "do stuff",
-        verbose: true, passthrough: [],
+        rawPrompt: false, verbose: true, passthrough: [],
       });
     });
   });
@@ -76,7 +76,7 @@ describe("parseArgs", () => {
       ]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "do stuff",
-        verbose: false, passthrough: ["--max-turns", "5"],
+        rawPrompt: false, verbose: false, passthrough: ["--max-turns", "5"],
       });
     });
 
@@ -86,7 +86,7 @@ describe("parseArgs", () => {
       ]);
       expect(result).toEqual({
         kind: "run", agentName: "claude", prompt: "do stuff",
-        verbose: false, passthrough: ["--verbose"],
+        rawPrompt: false, verbose: false, passthrough: ["--verbose"],
       });
     });
 
@@ -104,7 +104,7 @@ describe("parseArgs", () => {
       const result = parseArgs(["node", "solito", "fix the bug"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "fix the bug",
-        verbose: false, passthrough: [],
+        rawPrompt: false, verbose: false, passthrough: [],
       });
     });
 
@@ -112,8 +112,48 @@ describe("parseArgs", () => {
       const result = parseArgs(["node", "solito", "--agent=claude", "fix it"]);
       expect(result).toEqual({
         kind: "run", agentName: "claude", prompt: "fix it",
-        verbose: false, passthrough: [],
+        rawPrompt: false, verbose: false, passthrough: [],
       });
+    });
+  });
+
+  describe("prompt command", () => {
+    it("parses 'prompt' subcommand with raw prompt", () => {
+      const result = parseArgs(["node", "solito", "prompt", "fix the bug"]);
+      expect(result).toEqual({
+        kind: "run", agentName: undefined, prompt: "fix the bug",
+        rawPrompt: true, verbose: false, passthrough: [],
+      });
+    });
+
+    it("never resolves as a named command", () => {
+      const result = parseArgs(["node", "solito", "prompt", "quality"]);
+      expect(result).toEqual({
+        kind: "run", agentName: undefined, prompt: "quality",
+        rawPrompt: true, verbose: false, passthrough: [],
+      });
+    });
+
+    it("supports --agent flag", () => {
+      const result = parseArgs(["node", "solito", "prompt", "-a", "codex", "do stuff"]);
+      expect(result).toEqual({
+        kind: "run", agentName: "codex", prompt: "do stuff",
+        rawPrompt: true, verbose: false, passthrough: [],
+      });
+    });
+
+    it("supports passthrough args", () => {
+      const result = parseArgs([
+        "node", "solito", "prompt", "do stuff", "--", "--max-turns", "3",
+      ]);
+      expect(result).toEqual({
+        kind: "run", agentName: undefined, prompt: "do stuff",
+        rawPrompt: true, verbose: false, passthrough: ["--max-turns", "3"],
+      });
+    });
+
+    it("returns help when prompt has no argument", () => {
+      expect(parseArgs(["node", "solito", "prompt"])).toEqual({ kind: "help" });
     });
   });
 

@@ -53,6 +53,8 @@ root:
 | `Cargo.toml`      | Rust       |
 | `go.mod`          | Go         |
 | `package.json`    | TypeScript |
+| `pom.xml`         | Java (Maven) |
+| `build.gradle` or `build.gradle.kts` | Java (Gradle) |
 
 If multiple markers exist, ask the human which project to target. If none exist, stop and report.
 
@@ -84,6 +86,8 @@ Run the full test suite using the command for your detected language:
 - **Rust**: `cargo test --workspace 2>&1`
 - **Go**: `go test ./... 2>&1`
 - **TypeScript**: `npm test 2>&1` (or the test script defined in `package.json`)
+- **Java (Maven)**: `mvn test 2>&1`
+- **Java (Gradle)**: `./gradlew test 2>&1`
 
 Record the result. There are three possible outcomes:
 
@@ -144,7 +148,7 @@ Look at the current metrics and pick **one** improvement target. Use this priori
    or refactor untestable code.
 4. **High complexity** — find the most complex functions and simplify them (extract helpers, reduce
    nesting, simplify control flow).
-5. **Linter warnings** — fix clippy / golangci-lint / eslint warnings.
+5. **Linter warnings** — fix clippy / golangci-lint / eslint / checkstyle / spotbugs warnings.
 6. **Dead code removal** — remove unused functions, types, imports.
 7. **Documentation gaps** — add doc comments to public API surfaces.
 
@@ -158,7 +162,7 @@ Make a focused, minimal edit. Hard constraints:
 
 - **Maximum 200 lines changed** (additions + deletions). If you need more, break it into multiple
   loops.
-- **Do not add `#[allow(...)]`, `//nolint`, or `// eslint-disable`** to suppress warnings. Fix the
+- **Do not add `#[allow(...)]`, `//nolint`, `// eslint-disable`, or `@SuppressWarnings`** to suppress warnings. Fix the
   underlying issue.
 - **Preserve all public API signatures** unless the change is specifically about API improvement and
   no downstream consumers exist.
@@ -172,6 +176,8 @@ Run the build command for your detected language. If it fails, discard immediate
 - **Rust**: `cargo build --workspace 2>&1`
 - **Go**: `go build ./... 2>&1`
 - **TypeScript**: `npm run build 2>&1`
+- **Java (Maven)**: `mvn compile -q 2>&1`
+- **Java (Gradle)**: `./gradlew compileJava 2>&1`
 
 #### 4.3.2 Lint (mandatory)
 
@@ -180,6 +186,8 @@ Run the linter. If it reports any errors, discard immediately — no exceptions.
 - **Rust**: `cargo clippy --workspace -- -D warnings 2>&1`
 - **Go**: `golangci-lint run ./... 2>&1`
 - **TypeScript**: `npx eslint . 2>&1`
+- **Java (Maven)**: `mvn checkstyle:check -q 2>&1` (or spotbugs if configured)
+- **Java (Gradle)**: `./gradlew checkstyleMain 2>&1` (or spotbugsMain if configured)
 
 #### 4.3.3 Tests
 
@@ -188,6 +196,8 @@ Run the full test suite:
 - **Rust**: `cargo test --workspace 2>&1`
 - **Go**: `go test ./... 2>&1`
 - **TypeScript**: `npm test 2>&1`
+- **Java (Maven)**: `mvn test 2>&1`
+- **Java (Gradle)**: `./gradlew test 2>&1`
 
 The validation rule depends on the loop category:
 
@@ -448,11 +458,15 @@ a unified `${var:command_work_dir}/metrics.json` with this schema:
 | Go         | built-in            | `go test ./... -coverprofile=coverage.out 2>/dev/null && go tool cover -func=coverage.out \| grep total \| awk '{print $3}' \| tr -d '%'` |
 | TypeScript | `c8` / `istanbul`   | `npx c8 --reporter=json-summary npm test 2>/dev/null && jq '.total.lines.pct' coverage/coverage-summary.json` |
 | TypeScript (alt) | `vitest`     | `npx vitest run --coverage --reporter=json 2>/dev/null` |
+| Java (Maven) | `jacoco`         | `mvn test jacoco:report -q 2>/dev/null && grep -oP 'Total.*?(\d+%)' target/site/jacoco/index.html` or parse `target/site/jacoco/jacoco.csv` |
+| Java (Gradle) | `jacoco`        | `./gradlew test jacocoTestReport 2>/dev/null` → parse `build/reports/jacoco/test/jacocoTestReport.csv` |
 
 At startup, check which tool is available. If none is installed, attempt to install it:
 - **Rust**: `cargo install cargo-llvm-cov`
 - **Go**: built-in, no install needed.
 - **TypeScript**: `npm install --save-dev c8` or check if vitest is already configured.
+- **Java (Maven)**: add `jacoco-maven-plugin` to `pom.xml` if not present.
+- **Java (Gradle)**: add `jacoco` plugin to `build.gradle` if not present.
 
 If installation fails, skip the coverage metric and log a warning — do not let a missing tool
 block the entire loop.
@@ -461,12 +475,13 @@ block the entire loop.
 
 | Language   | Tool                     | Command |
 |------------|--------------------------|---------|
-| Rust       | `rust-code-analysis-cli` | `rust-code-analysis-cli -m -O json -p src/ 2>/dev/null` → parse `cyclomatic` from the JSON output |
+| Rust       | `rust-code-analysis-cli` | `rust-code-analysis-cli -m -O json -p src/ 2>/dev/null` → parse `cyclomatic` from the JSON output. Install: `cargo install rust-code-analysis-cli --locked` |
 | Rust (alt) | manual heuristic         | Count `if`, `match`, `for`, `while`, `loop`, `&&`, `\|\|` per function as a proxy |
 | Go         | `gocyclo`                | `gocyclo -avg . 2>/dev/null` → extract average and max |
 | Go (alt)   | `gocognit`               | `gocognit -avg . 2>/dev/null` |
-| TypeScript | `eslint` complexity rule | `npx eslint --format json . 2>/dev/null` → count rules matching `complexity` |
-| TypeScript (alt) | `typhonjs-escomplex` | `npx escomplex src/ 2>/dev/null` |
+| TypeScript | `code-complexity`        | `npx code-complexity . --limit 10 --sort ratio` → shows functions sorted by complexity ratio. Install: `npm install --save-dev code-complexity` |
+| Java       | `pmd`                    | `pmd check -d src/ -R rulesets/java/design.xml -f json 2>/dev/null` → parse cyclomatic complexity violations |
+| Java (alt) | `javancss`               | Manual heuristic: count `if`, `for`, `while`, `switch`, `catch`, `&&`, `\|\|` per method |
 
 Compute both `avg_cyclomatic_complexity` (mean across all functions) and
 `max_cyclomatic_complexity` (worst single function). The max is the more important signal — one
@@ -480,6 +495,9 @@ function with complexity 30 is a bigger problem than a high average.
 | Go         | `golangci-lint`  | `golangci-lint run --out-format json ./... 2>/dev/null \| jq '.Issues \| length'` |
 | Go (alt)   | `go vet`         | `go vet ./... 2>&1 \| wc -l` |
 | TypeScript | `eslint`         | `npx eslint --format json . 2>/dev/null \| jq '[.[].messages[]] \| length'` |
+| Java (Maven) | `checkstyle`  | `mvn checkstyle:check -q 2>&1 \| grep -c 'WARNING\|ERROR'` |
+| Java (Gradle) | `checkstyle`  | `./gradlew checkstyleMain 2>&1 \| grep -c 'WARN\|ERROR'` |
+| Java (alt) | `spotbugs`       | `mvn spotbugs:check -q 2>&1` or `./gradlew spotbugsMain 2>&1` |
 
 ### 7.4 Broken test count
 
@@ -490,6 +508,8 @@ committing.
 - **Rust**: parse `cargo test` output for `test result: ... X passed; Y failed`
 - **Go**: parse `go test` output for `--- FAIL:` lines
 - **TypeScript**: parse test runner output for failure count (runner-dependent)
+- **Java (Maven)**: parse `mvn test` output or `target/surefire-reports/*.xml` for failure count
+- **Java (Gradle)**: parse `./gradlew test` output or `build/test-results/test/*.xml` for failure count
 
 ### 7.5 Additional metrics (optional but recommended)
 
@@ -511,6 +531,8 @@ find src/ -name '*.rs' | xargs wc -l | tail -1 | awk '{print $1}'
 find . -name '*.go' -not -path './vendor/*' | xargs wc -l | tail -1 | awk '{print $1}'
 # TypeScript
 find src/ -name '*.ts' -o -name '*.tsx' | xargs wc -l | tail -1 | awk '{print $1}'
+# Java
+find src/ -name '*.java' | xargs wc -l | tail -1 | awk '{print $1}'
 ```
 
 ### 7.6 Composite score (for tie-breaking)
@@ -578,12 +600,25 @@ go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 npm install --save-dev c8
 # or vitest has built-in coverage
 
-# Complexity
-npm install --save-dev eslint
-# ensure .eslintrc has: "rules": { "complexity": ["warn", 10] }
+# Complexity (verify eslint config exists with complexity rule)
+npm install --save-dev eslint @eslint/js typescript-eslint
+# ensure eslint.config.mjs has: complexity: ["warn", 10]
+```
 
-# Alternative standalone complexity analyzer
-npx typhonjs-escomplex
+### Java
+
+```bash
+# Coverage — add JaCoCo plugin to pom.xml or build.gradle
+# Maven: add jacoco-maven-plugin to <build><plugins>
+# Gradle: add `id 'jacoco'` to plugins block
+
+# Complexity
+# Maven: add maven-pmd-plugin to <build><plugins> with cyclomatic complexity rule
+# Gradle: add `id 'pmd'` to plugins block
+
+# Linting
+# Maven: add maven-checkstyle-plugin to <build><plugins>
+# Gradle: add `id 'checkstyle'` to plugins block
 ```
 
 ---
@@ -603,10 +638,10 @@ npx typhonjs-escomplex
 
 Only modify files under:
 - `src/`, `lib/`, `internal/`, `pkg/`, `cmd/` (source code)
-- `tests/`, `test/`, `*_test.go`, `*.test.ts`, `*.spec.ts` (test code)
+- `tests/`, `test/`, `*_test.go`, `*.test.ts`, `*.spec.ts`, `*Test.java` (test code)
 
 Do not touch:
-- Build configuration (`Cargo.toml` dependencies, `go.mod`, `package.json` dependencies)
+- Build configuration (`Cargo.toml` dependencies, `go.mod`, `package.json` dependencies, `pom.xml` dependencies, `build.gradle` dependencies)
 - Environment or deployment files
 - Documentation outside of doc comments
 
@@ -650,7 +685,7 @@ optional — omitted fields use the defaults shown below.
   },
   "scope": {
     "include": ["src/", "lib/", "internal/", "pkg/", "cmd/", "tests/", "test/"],
-    "exclude": ["generated/", "vendor/", "node_modules/", "target/"]
+    "exclude": ["generated/", "vendor/", "node_modules/", "target/", "build/"]
   }
 }
 ```

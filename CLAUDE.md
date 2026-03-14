@@ -4,13 +4,13 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 
 ## Structure
 
-- `src/cli.ts` - Entry point: parses command, loads config, dispatches to handler. For named commands, writes resolved prompt to file (avoids ENAMETOOLONG) and injects `max_turn_time_minutes` as built-in variable from loop config
-- `src/args.ts` - Subcommand routing (run, config, help), shows available built-in commands in usage
-- `src/agents/agent.ts` - `Agent` interface, `AgentRunOptions` (appendSystemPrompt, loopMaxMinutes, passthrough, progressFilePath)
+- `src/cli.ts` - Entry point: parses command, loads config, dispatches to handler. Skips command resolution for `rawPrompt`. For named commands, writes resolved prompt to file and injects `max_turn_time_minutes`
+- `src/args.ts` - Subcommand routing (run, prompt, config, help). `prompt` subcommand sets `rawPrompt: true` to skip command resolution
+- `src/agents/agent.ts` - `Agent` interface, `AgentHandle` (includes `iterationComplete` flag), `AgentRunOptions`
 - `src/agents/registry.ts` - Agent factory registry with `registerAgent()` / `getAgent()`
-- `src/agents/claude.ts` - Claude agent: streams JSON (input+output), parses output, builds system prompt, uses `--input-format stream-json` for stdin messaging
+- `src/agents/claude.ts` - Claude agent: streams JSON, detects `=== ITERATION COMPLETE ===` marker, kills process tree on completion
 - `src/agents/codex.ts` - Codex agent: `codex --prompt <prompt>`
-- `src/agents/prompt-builder.ts` - Builds autonomous agent system prompt with loop/task context, progress file instructions
+- `src/agents/prompt-builder.ts` - Builds autonomous agent system prompt: loop context, test execution strategy, progress file, priority-ordered tasks, coverage/complexity metrics
 - `src/commands/run-command.ts` - Executes agent in continuation loop with progress file persistence, 3-stage escalating timeout warnings (soft/urgent/kill) sent to agent via stdin, minute ticker, Windows-aware signal forwarding
 - `src/commands/config-command.ts` - Displays current config as YAML
 - `src/commands/command-resolver.ts` - `CommandResolver` interface, `DefaultCommandResolver`: resolves named commands to prompt file content with variable interpolation
@@ -29,7 +29,8 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 - `src/stream/formatter.ts` - `StreamFormatter` interface, `ConsoleStreamFormatter` (verbose mode, known-tool formatting, markdown rendering)
 - `src/stream/tool-formatter.ts` - Pretty-prints known tool inputs (Agent, Bash) with type-guarded JSON parsing
 - `src/stream/markdown-renderer.ts` - `MarkdownRenderer` interface, `TerminalMarkdownRenderer` (marked + marked-terminal)
-- `src/constants.ts` - Shared constants (ANSI codes, icons, separator, preview lengths)
+- `src/constants.ts` - Shared constants (ANSI codes, icons, separator, preview lengths, ITERATION_COMPLETE_MARKER)
+- `src/process/kill-process-tree.ts` - Cross-platform process tree killing (taskkill /T on Windows, process group on Unix)
 - `src/filesystem/filesystem.ts` - `FileSystem` interface
 - `src/filesystem/default-filesystem.ts` - Real `fs/promises` implementation (ENOENT-specific error handling)
 - `src/process/spawner.ts` - `ProcessSpawner` interface

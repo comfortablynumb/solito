@@ -6,6 +6,9 @@ import { StreamFormatter } from "../stream/formatter";
 import { Logger } from "../util/logger";
 import { commandExists } from "../util/command";
 import { buildSystemPrompt } from "./prompt-builder";
+import { ITERATION_COMPLETE_MARKER, EXIT_MARKER } from "../constants";
+import { killProcessTree } from "../process/kill-process-tree";
+import { CliMessage, CliStreamEvent } from "../stream/events";
 
 export interface ClaudeAgentDeps {
   spawner: StreamingProcessSpawner;
@@ -39,16 +42,28 @@ export class ClaudeAgent implements Agent {
 
     this.logCommand(args);
 
+    const state: HandleLineState = {
+      childRef: { value: null },
+      iterationComplete: { value: false },
+      exitRequested: { value: false },
+    };
+
     const handle = this.spawner.spawn({
       command: "claude",
       args,
-      onLine: (line) => this.handleLine(line),
+      onLine: (line) => this.handleLine(line, state),
       stdinMode: "pipe",
     });
 
+    state.childRef.value = handle.child;
     this.sendInitialPrompt(handle.child, prompt);
 
-    return { child: handle.child, result: handle.result };
+    return {
+      child: handle.child,
+      result: handle.result,
+      iterationComplete: state.iterationComplete,
+      exitRequested: state.exitRequested,
+    };
   }
 
   async isAvailable(): Promise<boolean> {
@@ -103,6 +118,7 @@ export class ClaudeAgent implements Agent {
       loopMaxMinutes,
       userSystemPrompt: options?.appendSystemPrompt,
       progressFilePath: options?.progressFilePath,
+      isFirstIteration: options?.isFirstIteration,
     });
   }
 
@@ -115,21 +131,70 @@ export class ClaudeAgent implements Agent {
     this.logger.info(`> claude ${displayArgs.join(" ")}`);
   }
 
-  private handleLine(line: string): void {
+  private handleLine(line: string, state: HandleLineState): void {
     if (this.verbose && this.logger) {
       this.logger.info(line);
     }
 
     const message = this.parser.parseLine(line);
 
-    if (message) {
-      this.formatter.format(message);
+    if (!message) {
+      return;
+    }
+
+    this.formatter.format(message);
+
+    if (!state.childRef.value) {
+      return;
+    }
+
+    if (containsMarker(message, EXIT_MARKER)) {
+      state.exitRequested.value = true;
+      killProcessTree(state.childRef.value);
+    } else if (containsMarker(message, ITERATION_COMPLETE_MARKER)) {
+      state.iterationComplete.value = true;
+      killProcessTree(state.childRef.value);
     }
   }
 }
 
+interface HandleLineState {
+  childRef: { value: ChildProcess | null };
+  iterationComplete: { value: boolean };
+  exitRequested: { value: boolean };
+}
+
 const MAX_ARG_DISPLAY_LENGTH = 80;
 const LONG_ARG_FLAGS = new Set(["--append-system-prompt"]);
+
+function containsMarker(message: CliMessage, marker: string): boolean {
+  if (isStreamTextDelta(message)) {
+    return message.event.delta.text.includes(marker);
+  }
+
+  if (message.type === "assistant") {
+    return message.message.content.some(
+      (block) => block.type === "text" && block.text.includes(marker),
+    );
+  }
+
+  return false;
+}
+
+function isStreamTextDelta(message: CliMessage): message is CliStreamEvent & {
+  event: { type: "content_block_delta"; delta: { type: "text_delta"; text: string } };
+} {
+  if (message.type !== "stream_event") {
+    return false;
+  }
+
+  const event = (message as CliStreamEvent).event;
+  return (
+    event.type === "content_block_delta" &&
+    "delta" in event &&
+    event.delta.type === "text_delta"
+  );
+}
 
 function redactLongArgs(args: string[]): string[] {
   const result: string[] = [];

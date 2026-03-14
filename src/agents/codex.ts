@@ -14,7 +14,8 @@ export class CodexAgent implements Agent {
       args.push(...options.passthrough);
     }
 
-    return this.spawner.spawn("codex", args);
+    const handle = this.spawner.spawn("codex", args);
+    return { ...handle, iterationComplete: { value: false }, exitRequested: { value: false } };
   }
 
   async isAvailable(): Promise<boolean> {

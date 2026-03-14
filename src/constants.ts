@@ -1,3 +1,5 @@
+export const ITERATION_COMPLETE_MARKER = "=== ITERATION COMPLETE ===";
+export const EXIT_MARKER = "=== EXIT ===";
 export const PARSE_PREVIEW_MAX_LENGTH = 80;
 export const SEPARATOR = "─".repeat(40);
 

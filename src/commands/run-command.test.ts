@@ -153,10 +153,14 @@ describe("executeRunCommand", () => {
           result: new Promise<AgentResult>((resolve) => {
             resolveFirstTurn = resolve;
           }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         })
         .mockReturnValue({
           child,
           result: Promise.resolve(ok),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         }),
       isAvailable: jest.fn().mockResolvedValue(true),
     };
@@ -205,10 +209,14 @@ describe("executeRunCommand", () => {
           result: new Promise<AgentResult>((resolve) => {
             resolveFirstTurn = resolve;
           }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         })
         .mockReturnValue({
           child,
           result: Promise.resolve(ok),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         }),
       isAvailable: jest.fn().mockResolvedValue(true),
     };
@@ -254,10 +262,14 @@ describe("executeRunCommand", () => {
           result: new Promise<AgentResult>((resolve) => {
             resolveFirstTurn = resolve;
           }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         })
         .mockReturnValue({
           child,
           result: Promise.resolve(ok),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         }),
       isAvailable: jest.fn().mockResolvedValue(true),
     };
@@ -301,10 +313,14 @@ describe("executeRunCommand", () => {
           result: new Promise<AgentResult>((resolve) => {
             resolveFirstTurn = resolve;
           }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         })
         .mockReturnValue({
           child,
           result: Promise.resolve(ok),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         }),
       isAvailable: jest.fn().mockResolvedValue(true),
     };
@@ -346,10 +362,14 @@ describe("executeRunCommand", () => {
           result: new Promise<AgentResult>((resolve) => {
             resolveFirstTurn = resolve;
           }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         })
         .mockReturnValue({
           child,
           result: Promise.resolve(ok),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         }),
       isAvailable: jest.fn().mockResolvedValue(true),
     };
@@ -391,6 +411,8 @@ describe("executeRunCommand", () => {
           result: new Promise<AgentResult>((resolve) => {
             resolveFirstTurn = resolve;
           }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         }),
       isAvailable: jest.fn().mockResolvedValue(true),
     };
@@ -435,10 +457,14 @@ describe("executeRunCommand", () => {
           result: new Promise<AgentResult>((resolve) => {
             resolveFirstTurn = resolve;
           }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         })
         .mockReturnValue({
           child,
           result: Promise.resolve(ok),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
         }),
       isAvailable: jest.fn().mockResolvedValue(true),
     };

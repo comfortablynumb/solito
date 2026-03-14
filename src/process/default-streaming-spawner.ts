@@ -6,8 +6,11 @@ export class DefaultStreamingSpawner implements StreamingProcessSpawner {
   spawn(options: StreamingSpawnOptions): StreamingSpawnHandle {
     const { command, args, onLine, stdinMode = "ignore" } = options;
 
+    const isWindows = process.platform === "win32";
+
     const child = spawn(command, args, {
       stdio: [stdinMode, "pipe", "pipe"],
+      detached: !isWindows,
     });
 
     const result = new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve, reject) => {

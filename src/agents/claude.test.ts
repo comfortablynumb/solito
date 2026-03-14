@@ -3,6 +3,8 @@ import { SpawnResult } from "../process/spawner";
 import { StreamingSpawnOptions } from "../process/streaming-spawner";
 import { createMockChild } from "../test/mock-child-process";
 import { createMockLogger } from "../test/mock-logger";
+import { ITERATION_COMPLETE_MARKER, EXIT_MARKER } from "../constants";
+import { CliMessage } from "../stream/events";
 
 function createMockDeps(result: SpawnResult): ClaudeAgentDeps & {
   spawner: { spawn: jest.Mock };
@@ -208,6 +210,126 @@ describe("ClaudeAgent", () => {
 
     const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]);
     expect(allLogs).toContain(rawLine);
+  });
+
+  it("kills child when iteration complete marker is detected in text delta", async () => {
+    const deps = createMockDeps(mockResult);
+    const child = createMockChild();
+    const markerMessage: CliMessage = {
+      type: "stream_event",
+      event: {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: ITERATION_COMPLETE_MARKER },
+      },
+    };
+
+    (deps.parser.parseLine as jest.Mock).mockReturnValue(markerMessage);
+
+    let capturedOnLine: ((line: string) => void) | null = null;
+
+    deps.spawner.spawn.mockImplementation((options: StreamingSpawnOptions) => {
+      capturedOnLine = options.onLine;
+      return { child, result: Promise.resolve(mockResult) };
+    });
+
+    const agent = new ClaudeAgent(deps);
+    const handle = agent.run("do stuff");
+    capturedOnLine!("line with marker");
+    await handle.result;
+
+    expect(child.kill).toHaveBeenCalled();
+    expect(handle.iterationComplete.value).toBe(true);
+  });
+
+  it("kills child when iteration complete marker is detected in assistant message", async () => {
+    const deps = createMockDeps(mockResult);
+    const child = createMockChild();
+    const assistantMessage: CliMessage = {
+      type: "assistant",
+      message: {
+        content: [{ type: "text", text: `Done.\n${ITERATION_COMPLETE_MARKER}` }],
+      },
+    };
+
+    (deps.parser.parseLine as jest.Mock).mockReturnValue(assistantMessage);
+
+    let capturedOnLine: ((line: string) => void) | null = null;
+
+    deps.spawner.spawn.mockImplementation((options: StreamingSpawnOptions) => {
+      capturedOnLine = options.onLine;
+      return { child, result: Promise.resolve(mockResult) };
+    });
+
+    const agent = new ClaudeAgent(deps);
+    const handle = agent.run("do stuff");
+    capturedOnLine!("line with marker");
+    await handle.result;
+
+    expect(child.kill).toHaveBeenCalled();
+    expect(handle.iterationComplete.value).toBe(true);
+  });
+
+  it("does not kill child when no marker is present", async () => {
+    const deps = createMockDeps(mockResult);
+    const child = createMockChild();
+    const normalMessage: CliMessage = {
+      type: "stream_event",
+      event: {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: "just some text" },
+      },
+    };
+
+    (deps.parser.parseLine as jest.Mock).mockReturnValue(normalMessage);
+
+    let capturedOnLine: ((line: string) => void) | null = null;
+
+    deps.spawner.spawn.mockImplementation((options: StreamingSpawnOptions) => {
+      capturedOnLine = options.onLine;
+      return { child, result: Promise.resolve(mockResult) };
+    });
+
+    const agent = new ClaudeAgent(deps);
+    const handle = agent.run("do stuff");
+    capturedOnLine!("normal line");
+    await handle.result;
+
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(handle.iterationComplete.value).toBe(false);
+    expect(handle.exitRequested.value).toBe(false);
+  });
+
+  it("sets exitRequested when exit marker is detected", async () => {
+    const deps = createMockDeps(mockResult);
+    const child = createMockChild();
+    const exitMessage: CliMessage = {
+      type: "stream_event",
+      event: {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: EXIT_MARKER },
+      },
+    };
+
+    (deps.parser.parseLine as jest.Mock).mockReturnValue(exitMessage);
+
+    let capturedOnLine: ((line: string) => void) | null = null;
+
+    deps.spawner.spawn.mockImplementation((options: StreamingSpawnOptions) => {
+      capturedOnLine = options.onLine;
+      return { child, result: Promise.resolve(mockResult) };
+    });
+
+    const agent = new ClaudeAgent(deps);
+    const handle = agent.run("do stuff");
+    capturedOnLine!("line with exit marker");
+    await handle.result;
+
+    expect(child.kill).toHaveBeenCalled();
+    expect(handle.exitRequested.value).toBe(true);
+    expect(handle.iterationComplete.value).toBe(false);
   });
 
   it("does not log command or raw lines when not verbose", async () => {

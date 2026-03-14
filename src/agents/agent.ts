@@ -11,11 +11,14 @@ export interface AgentRunOptions {
   loopMaxMinutes?: number;
   passthrough?: string[];
   progressFilePath?: string;
+  isFirstIteration?: boolean;
 }
 
 export interface AgentHandle {
   child: ChildProcess;
   result: Promise<AgentResult>;
+  iterationComplete: { value: boolean };
+  exitRequested: { value: boolean };
 }
 
 export interface Agent {

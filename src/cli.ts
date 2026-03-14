@@ -52,7 +52,9 @@ async function main(): Promise<void> {
     commands: config.commands,
   });
 
-  const resolved = await commandResolver.resolve(command.prompt);
+  const resolved = command.rawPrompt
+    ? { prompt: command.prompt, isCommand: false, commandName: undefined }
+    : await commandResolver.resolve(command.prompt);
   let prompt = resolved.prompt;
   let progressDir: string | undefined;
 
