@@ -5,7 +5,7 @@ export function commandExists(command: string): Promise<boolean> {
   const checkCmd = isWindows ? "where" : "which";
 
   return new Promise((resolve) => {
-    execFile(checkCmd, [command], (error) => {
+    execFile(checkCmd, [command], { windowsHide: true }, (error) => {
       resolve(!error);
     });
   });

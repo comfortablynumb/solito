@@ -17,7 +17,7 @@ export function killProcessTree(child: ChildProcess): void {
 
 function killWindowsProcessTree(child: ChildProcess): void {
   try {
-    execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore" });
+    execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore", windowsHide: true });
   } catch {
     child.kill("SIGKILL");
   }

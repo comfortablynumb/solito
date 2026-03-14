@@ -16,6 +16,7 @@ export interface CommandVariables {
 export interface CommandConfig {
   prompt: string;
   variables?: CommandVariables;
+  append_system_prompt?: string;
 }
 
 export interface SolitoConfig {

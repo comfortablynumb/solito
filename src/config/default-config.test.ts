@@ -7,10 +7,10 @@ describe("createDefaultConfig", () => {
     expect(config.default_agent).toBe("claude");
   });
 
-  it("returns config with 10 minute loop time", () => {
+  it("returns config with 15 minute loop time", () => {
     const config = createDefaultConfig();
 
-    expect(config.loop.max_turn_time_minutes).toBe(10);
+    expect(config.loop.max_turn_time_minutes).toBe(15);
   });
 
   it("includes claude agent entry", () => {
@@ -34,7 +34,7 @@ describe("mergeWithDefaults", () => {
     const config = mergeWithDefaults({});
 
     expect(config.default_agent).toBe("claude");
-    expect(config.loop.max_turn_time_minutes).toBe(10);
+    expect(config.loop.max_turn_time_minutes).toBe(15);
     expect(config.agents.claude.type).toBe("claude");
   });
 

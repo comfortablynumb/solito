@@ -4,8 +4,8 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 
 ## Structure
 
-- `src/cli.ts` - Entry point: parses command, loads config, dispatches to handler. Skips command resolution for `rawPrompt`. For named commands, writes resolved prompt to file and injects `max_turn_time_minutes`
-- `src/args.ts` - Subcommand routing (run, prompt, config, help). `prompt` subcommand sets `rawPrompt: true` to skip command resolution
+- `src/cli.ts` - Entry point: parses command, loads config, validates command names against built-in subcommands, dispatches to handler. For named commands, writes resolved prompt to file and injects `max_turn_time_minutes`
+- `src/args.ts` - Subcommand routing (prompt, config, help, or command name as first arg). `prompt` subcommand sets `rawPrompt: true`. No `run` subcommand — commands are invoked directly (e.g. `solito quality`)
 - `src/agents/agent.ts` - `Agent` interface, `AgentHandle` (includes `iterationComplete` flag), `AgentRunOptions`
 - `src/agents/registry.ts` - Agent factory registry with `registerAgent()` / `getAgent()`
 - `src/agents/claude.ts` - Claude agent: streams JSON, detects `=== ITERATION COMPLETE ===` marker, kills process tree on completion
@@ -47,7 +47,7 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 
 - `npm run build` - Compile TypeScript
 - `npm test` - Run Jest tests
-- `npm run dev -- run <prompt>` - Run without building
+- `npm run dev -- <command>` - Run without building
 
 ## Adding Agents
 

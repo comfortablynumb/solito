@@ -185,8 +185,8 @@ describe("buildSystemPrompt", () => {
       loopMaxMinutes: 5,
     });
 
-    expect(prompt).toContain("Coverage AND cyclomatic complexity are BOTH PRIMARY");
-    expect(prompt).toContain("MUST measure and report BOTH metrics");
+    expect(prompt).toContain("Coverage, cyclomatic complexity, AND linter cleanliness are ALL PRIMARY");
+    expect(prompt).toContain("MUST measure and report ALL metrics");
     expect(prompt).toContain("Refactor complex functions");
     expect(prompt).toContain("MANDATORY COMPLEXITY CHECK");
     expect(prompt).toContain("MUST run a cyclomatic complexity tool EVERY iteration");

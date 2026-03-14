@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { parseArgs, printUsage } from "./args";
+import { parseArgs, printUsage, listBuiltInSubcommands } from "./args";
 import { getAgent } from "./agents/registry";
 import { DefaultFileSystem } from "./filesystem/default-filesystem";
 import { YamlConfigLoader } from "./config/yaml-config-loader";
@@ -11,6 +11,7 @@ import { executeRunCommand } from "./commands/run-command";
 import { executeConfigCommand } from "./commands/config-command";
 import { DefaultCommandResolver } from "./commands/command-resolver";
 import { DefaultVariableResolver } from "./interpolation/variable-resolver";
+import { AgentConfig, SolitoConfig } from "./config/config";
 import * as path from "path";
 
 async function main(): Promise<void> {
@@ -42,6 +43,8 @@ async function main(): Promise<void> {
   }
 
   const config = await configLoader.load();
+  validateCommandNames(config.commands);
+
   const workspace = new DefaultWorkspaceInitializer({ filesystem, cwd });
   await workspace.ensureProjectDir();
 
@@ -55,6 +58,13 @@ async function main(): Promise<void> {
   const resolved = command.rawPrompt
     ? { prompt: command.prompt, isCommand: false, commandName: undefined }
     : await commandResolver.resolve(command.prompt);
+
+  if (!command.rawPrompt && !resolved.isCommand) {
+    console.error(`Error: unknown command "${command.prompt}". Use "solito prompt '<your prompt>'" for raw prompts.`);
+    printUsage();
+    process.exit(1);
+  }
+
   let prompt = resolved.prompt;
   let progressDir: string | undefined;
 
@@ -76,7 +86,7 @@ async function main(): Promise<void> {
 
   const agentName = command.agentName ?? config.default_agent;
   const agent = getAgent(agentName, { verbose: command.verbose });
-  const agentConfig = config.agents[agentName] ?? { type: agentName };
+  const agentConfig = buildAgentConfig(config, agentName, resolved.commandName);
 
   const code = await executeRunCommand({
     agent,
@@ -89,6 +99,43 @@ async function main(): Promise<void> {
   });
 
   process.exit(code);
+}
+
+function buildAgentConfig(
+  config: SolitoConfig,
+  agentName: string,
+  commandName?: string,
+): AgentConfig {
+  const base = config.agents[agentName] ?? { type: agentName };
+  const commandPrompt = commandName
+    ? config.commands?.[commandName]?.append_system_prompt
+    : undefined;
+
+  if (!commandPrompt) {
+    return base;
+  }
+
+  const merged = base.append_system_prompt
+    ? `${base.append_system_prompt}\n\n${commandPrompt}`
+    : commandPrompt;
+
+  return { ...base, append_system_prompt: merged };
+}
+
+function validateCommandNames(commands?: Record<string, unknown>): void {
+  if (!commands) {
+    return;
+  }
+
+  const reserved = listBuiltInSubcommands();
+
+  for (const name of Object.keys(commands)) {
+    if (reserved.includes(name)) {
+      throw new Error(
+        `Custom command "${name}" conflicts with built-in subcommand "${name}". Please rename it.`,
+      );
+    }
+  }
 }
 
 main().catch((err) => {

@@ -20,10 +20,11 @@ solito <command> [options]
 
 | Command | Description |
 |---|---|
-| `run [options] <command\|prompt>` | Run an agent with a named command or raw prompt |
+| `<command-name>` | Run a named command (built-in or custom) |
+| `prompt <prompt>` | Run an agent with a raw prompt |
 | `config` | Show current configuration |
 
-### Options (for `run`)
+### Options
 
 | Option | Description |
 |---|---|
@@ -36,28 +37,26 @@ solito <command> [options]
 
 ```bash
 # Run a named command (resolves prompt from config)
-solito run quality
+solito quality
+solito build
 
-# Run with Claude (default)
-solito run 'refactor the auth module'
+# Run with a raw prompt
+solito prompt 'refactor the auth module'
 
 # Specify agent explicitly
-solito run --agent=claude 'fix the login bug'
+solito quality --agent=claude
 
 # Use Codex
-solito run -a codex 'add unit tests'
-
-# Implicit run (no subcommand)
-solito 'fix the login bug'
+solito quality -a codex
 
 # Verbose mode (show metadata)
-solito run -v 'fix the bug'
+solito quality -v
 
 # Pass flags through to the underlying agent
-solito run 'fix the bug' -- --max-turns 5
+solito quality -- --max-turns 5
 
 # Combine flags
-solito run -a claude -v 'refactor auth' -- --verbose
+solito prompt -a claude -v 'refactor auth' -- --verbose
 
 # Show current config
 solito config
@@ -92,7 +91,9 @@ agents:
 
 ### Named Commands
 
-Define reusable commands in your config. When you run `solito run <name>`, if `<name>` matches a key in `commands`, solito resolves the prompt file path, reads it, interpolates variables, and uses the result as the prompt.
+Define reusable commands in your config. When you run `solito <name>`, if `<name>` matches a key in `commands`, solito resolves the prompt file path, reads it, interpolates variables, and uses the result as the prompt.
+
+Custom command names must not conflict with built-in subcommands (`prompt`, `config`, `help`). Solito will throw an error if a conflict is detected.
 
 ```yaml
 commands:
@@ -121,13 +122,13 @@ Built-in commands included by default: `quality` and `build`.
 The `build` command implements features from ordered spec files using test-driven development.
 
 ```bash
-solito run build
+solito build
 ```
 
 **Setup:**
 1. Create a `specs/` directory in your project root (configurable via `specs_dir` variable).
 2. Add ordered markdown spec files: `01-feature.md`, `02-feature.md`, etc.
-3. Run `solito run build`.
+3. Run `solito build`.
 
 **Spec file format:**
 ```markdown
@@ -204,9 +205,10 @@ When enabled, additional metadata is displayed in dim yellow:
 ## Development
 
 ```bash
-npm run dev -- run 'your prompt'  # Run without building
-npm run build                      # Compile TypeScript
-npm test                           # Run tests
+npm run dev -- quality           # Run without building
+npm run dev -- prompt 'fix bug'  # Run with raw prompt
+npm run build                    # Compile TypeScript
+npm test                         # Run tests
 ```
 
 ## Project Structure

@@ -13,6 +13,8 @@ const IS_WINDOWS = process.platform === "win32";
 const DEFAULT_CONTINUE_PROMPT = "Continue where you left off.";
 const DEFAULT_TIMEOUT_PROMPT =
   "You have reached the time limit for this loop. Please finish what you are currently doing and provide a summary of your progress.";
+const DEFAULT_STOP_PROMPT =
+  "The user has requested a graceful stop. Please finish what you are currently doing, commit your progress, and provide a summary.";
 const PROGRESS_FILE_NAME = "loop-progress.md";
 const MAX_CONSECUTIVE_FAILURES = 3;
 
@@ -59,7 +61,7 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
 
   try {
     while (true) {
-      if (maxIterations !== undefined && iterationCount >= maxIterations) {
+      if (maxIterations !== undefined && iterationCount >= maxIterations && !isFinalTurn) {
         logger.info(`Reached maximum iterations (${maxIterations}).`);
         return lastExitCode;
       }
@@ -67,7 +69,9 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
       iterationCount++;
       const timeoutMs = getTimeoutMs(loopConfig);
 
-      if (isFinalTurn) {
+      if (isFinalTurn && stopAfterIteration.value) {
+        logger.info(`Wrapping up ${agent.name} agent (stop requested)...`);
+      } else if (isFinalTurn) {
         logger.info(`Wrapping up ${agent.name} agent (time limit reached)...`);
       } else if (isFirstRun) {
         logger.info(`Running ${agent.name} agent...`);
@@ -101,7 +105,23 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
       try {
         const result = await handle.result;
 
-        if (interrupted.value || isInterruptExitCode(result.exitCode)) {
+        if (interrupted.value) {
+          writeInterruptBanner(logger, startTime);
+          return 130;
+        }
+
+        if (stopAfterIteration.value && !isFinalTurn) {
+          isFinalTurn = true;
+          isFirstRun = false;
+          currentPrompt = await buildStopPrompt({ fs, progressFilePath });
+          continue;
+        }
+
+        if (stopAfterIteration.value && isFinalTurn) {
+          break;
+        }
+
+        if (isInterruptExitCode(result.exitCode)) {
           writeInterruptBanner(logger, startTime);
           return 130;
         }
@@ -135,11 +155,6 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
         cleanupTicker();
       }
 
-      if (stopAfterIteration.value) {
-        writeStopBanner(logger, startTime);
-        return lastExitCode;
-      }
-
       const nextPrompt = await buildContinuationPrompt({
         fs,
         progressFilePath,
@@ -152,6 +167,12 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
       isFinalTurn = timedOut.value;
       isFirstRun = false;
     }
+
+    if (stopAfterIteration.value) {
+      writeStopBanner(logger, startTime);
+    }
+
+    return lastExitCode;
   } finally {
     await cleanupProgressFile(fs, progressFilePath);
   }
@@ -178,6 +199,27 @@ function buildRunOptions(params: BuildRunOptionsParams): AgentRunOptions {
 function getProgressFilePath(progressDir?: string): string {
   const dir = progressDir ?? getConfigDir();
   return path.join(dir, PROGRESS_FILE_NAME);
+}
+
+interface StopPromptParams {
+  fs: FileSystem;
+  progressFilePath: string;
+}
+
+async function buildStopPrompt(params: StopPromptParams): Promise<string> {
+  const progress = await readProgressFile(params.fs, params.progressFilePath);
+
+  if (!progress) {
+    return DEFAULT_STOP_PROMPT;
+  }
+
+  return [
+    DEFAULT_STOP_PROMPT,
+    "",
+    "## Progress from previous iteration",
+    "",
+    progress,
+  ].join("\n");
 }
 
 interface ContinuationPromptParams {
@@ -251,8 +293,8 @@ function getTimeoutMs(loopConfig?: LoopConfig): number | undefined {
   return loopConfig.max_turn_time_minutes * 60 * 1000;
 }
 
-const WARNING_URGENT_OFFSET_MS = 2 * 60 * 1000;
-const WARNING_FINAL_OFFSET_MS = 5 * 60 * 1000;
+const WARNING_SOFT_BEFORE_MS = 5 * 60 * 1000;
+const WARNING_URGENT_BEFORE_MS = 2 * 60 * 1000;
 
 interface WriteStdinOptions {
   child: ChildProcess;
@@ -281,19 +323,18 @@ function writeStdinMessage(options: WriteStdinOptions): void {
 
 type WarningLevel = "soft" | "urgent" | "final";
 
-function buildWarningText(level: WarningLevel, timeoutMs: number): string {
-  const minutes = timeoutMs / 60000;
+function buildWarningText(level: WarningLevel, remainingMs: number): string {
+  const remaining = remainingMs / 60000;
 
   if (level === "soft") {
     return [
-      `Time limit reached (${minutes} min). Please start wrapping up.`,
+      `${remaining} minutes remaining. Please start wrapping up.`,
       "If your current change measurably improves metrics (coverage or complexity), commit it now.",
       "If not, rollback with: git checkout -- . && git clean -fd",
     ].join("\n");
   }
 
   if (level === "urgent") {
-    const remaining = (WARNING_FINAL_OFFSET_MS - WARNING_URGENT_OFFSET_MS) / 60000;
     return [
       `URGENT: Only ${remaining} minutes remaining before forced stop.`,
       "Commit now if metrics improved. Otherwise rollback immediately — do NOT leave uncommitted partial changes.",
@@ -322,34 +363,44 @@ function setupTimeoutWarnings(options: TimeoutWarningsOptions): () => void {
   const sep = `${ANSI.DIM}${SEPARATOR}${ANSI.RESET}`;
   const timers: NodeJS.Timeout[] = [];
 
-  timers.push(setTimeout(() => {
-    timedOut.value = true;
-    const lines = [
-      `${ANSI.YELLOW}${ANSI.BOLD}${ICONS.WARNING} Time limit reached (${timeoutMs / 60000} min). Please start wrapping up.${ANSI.RESET}`,
-      `${ANSI.YELLOW}If your current change measurably improves metrics (coverage or complexity), commit it now.${ANSI.RESET}`,
-      `${ANSI.YELLOW}If not, rollback with: git checkout -- . && git clean -fd${ANSI.RESET}`,
-    ];
-    logger.info(`\n${sep}\n${lines.join("\n")}\n${sep}`);
-    writeStdinMessage({ child, text: buildWarningText("soft", timeoutMs), logger: verboseLogger });
-  }, timeoutMs));
+  const softAt = Math.max(0, timeoutMs - WARNING_SOFT_BEFORE_MS);
+  const urgentAt = Math.max(0, timeoutMs - WARNING_URGENT_BEFORE_MS);
+  const softRemainingMs = timeoutMs - softAt;
+  const urgentRemainingMs = timeoutMs - urgentAt;
 
-  timers.push(setTimeout(() => {
-    const remaining = (WARNING_FINAL_OFFSET_MS - WARNING_URGENT_OFFSET_MS) / 60000;
-    const lines = [
-      `${ANSI.RED}${ANSI.BOLD}${ICONS.WARNING} URGENT: Only ${remaining} minutes remaining before forced stop.${ANSI.RESET}`,
-      `${ANSI.RED}${ANSI.BOLD}Commit now if metrics improved. Otherwise rollback immediately — do NOT leave uncommitted partial changes.${ANSI.RESET}`,
-    ];
-    logger.info(`\n${sep}\n${lines.join("\n")}\n${sep}`);
-    writeStdinMessage({ child, text: buildWarningText("urgent", timeoutMs), logger: verboseLogger });
-  }, timeoutMs + WARNING_URGENT_OFFSET_MS));
+  if (softAt > 0) {
+    timers.push(setTimeout(() => {
+      timedOut.value = true;
+      const softRemaining = softRemainingMs / 60000;
+      const lines = [
+        `${ANSI.YELLOW}${ANSI.BOLD}${ICONS.WARNING} ${softRemaining} minutes remaining. Please start wrapping up.${ANSI.RESET}`,
+        `${ANSI.YELLOW}If your current change measurably improves metrics (coverage or complexity), commit it now.${ANSI.RESET}`,
+        `${ANSI.YELLOW}If not, rollback with: git checkout -- . && git clean -fd${ANSI.RESET}`,
+      ];
+      logger.info(`\n${sep}\n${lines.join("\n")}\n${sep}`);
+      writeStdinMessage({ child, text: buildWarningText("soft", softRemainingMs), logger: verboseLogger });
+    }, softAt));
+  }
+
+  if (urgentAt > 0 && urgentAt > softAt) {
+    timers.push(setTimeout(() => {
+      const urgentRemaining = urgentRemainingMs / 60000;
+      const lines = [
+        `${ANSI.RED}${ANSI.BOLD}${ICONS.WARNING} URGENT: Only ${urgentRemaining} minutes remaining before forced stop.${ANSI.RESET}`,
+        `${ANSI.RED}${ANSI.BOLD}Commit now if metrics improved. Otherwise rollback immediately — do NOT leave uncommitted partial changes.${ANSI.RESET}`,
+      ];
+      logger.info(`\n${sep}\n${lines.join("\n")}\n${sep}`);
+      writeStdinMessage({ child, text: buildWarningText("urgent", urgentRemainingMs), logger: verboseLogger });
+    }, urgentAt));
+  }
 
   timers.push(setTimeout(() => {
     interrupted.value = true;
     const msg = `${ANSI.RED}${ANSI.BOLD}${ICONS.STOP} FINAL WARNING: Time expired. Forcing stop now. Any uncommitted changes will be lost.${ANSI.RESET}`;
     logger.info(`\n${sep}\n${msg}\n${sep}`);
-    writeStdinMessage({ child, text: buildWarningText("final", timeoutMs), logger: verboseLogger });
+    writeStdinMessage({ child, text: buildWarningText("final", 0), logger: verboseLogger });
     killProcessTree(child);
-  }, timeoutMs + WARNING_FINAL_OFFSET_MS));
+  }, timeoutMs));
 
   return () => timers.forEach((t) => clearTimeout(t));
 }
@@ -431,17 +482,24 @@ interface SignalForwardingOptions {
   logger: Logger;
 }
 
+const SIGINT_DEBOUNCE_MS = 500;
+
 function setupSignalForwarding(options: SignalForwardingOptions): () => void {
   const { child, interrupted, stopAfterIteration, logger } = options;
-  let sigintCount = 0;
+  let lastSigintTime = 0;
 
   const onSigint = () => {
-    sigintCount++;
+    const now = Date.now();
     const sep = `${ANSI.DIM}${SEPARATOR}${ANSI.RESET}`;
 
-    if (sigintCount === 1) {
+    if (!stopAfterIteration.value) {
       stopAfterIteration.value = true;
+      lastSigintTime = now;
       logger.info(`\n${sep}\n${ANSI.YELLOW}${ANSI.BOLD}${ICONS.STOP} CTRL+C received — will stop after current iteration finishes. Press CTRL+C again to force quit.${ANSI.RESET}\n${sep}`);
+      return;
+    }
+
+    if (now - lastSigintTime < SIGINT_DEBOUNCE_MS) {
       return;
     }
 

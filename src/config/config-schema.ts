@@ -21,6 +21,7 @@ const commandVariablesSchema: z.ZodType<Record<string, string | number | boolean
 const commandConfigSchema = z.object({
   prompt: z.string(),
   variables: commandVariablesSchema.optional(),
+  append_system_prompt: z.string().optional(),
 });
 
 const solitoConfigSchema = z.object({

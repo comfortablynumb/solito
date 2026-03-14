@@ -15,6 +15,12 @@ export type CliCommand =
   | { kind: "config" }
   | { kind: "help" };
 
+const BUILT_IN_SUBCOMMANDS = ["prompt", "config", "help"];
+
+export function listBuiltInSubcommands(): string[] {
+  return BUILT_IN_SUBCOMMANDS;
+}
+
 export function parseArgs(argv: string[]): CliCommand {
   const args = argv.slice(2);
 
@@ -28,7 +34,7 @@ export function parseArgs(argv: string[]): CliCommand {
     return { kind: "config" };
   }
 
-  if (subcommand === "--help" || subcommand === "-h") {
+  if (subcommand === "--help" || subcommand === "-h" || subcommand === "help") {
     return { kind: "help" };
   }
 
@@ -36,10 +42,7 @@ export function parseArgs(argv: string[]): CliCommand {
     return parseRunArgs(args.slice(1), true);
   }
 
-  if (subcommand === "run") {
-    return parseRunArgs(args.slice(1), false);
-  }
-
+  // First arg is a command name — pass it as the prompt for resolution
   return parseRunArgs(args, false);
 }
 
@@ -110,14 +113,14 @@ export function printUsage(): void {
 Usage: solito <command> [options]
 
 Commands:
-  run [options] <command|prompt>   Run an agent with a named command or raw prompt
-  prompt [options] <prompt>        Run an agent with a raw prompt (never resolves as command)
-  config                           Show current configuration
+  prompt [options] <prompt>   Run an agent with a raw prompt
+  config                      Show current configuration
+  help                        Show this help message
 
-Available run commands:
+Available commands:
 ${commandList}
 
-Options (for run):
+Options:
   --agent, -a <name>  Agent to use (default: from config)
                       Available: ${agents}
   --verbose, -v       Show additional metadata for each message
@@ -125,13 +128,12 @@ Options (for run):
   --                  Pass remaining flags to the underlying agent
 
 Examples:
-  solito run quality
-  solito run build
-  solito run 'refactor the auth module'
+  solito quality
+  solito build
   solito prompt 'refactor the auth module'
-  solito run --agent=claude 'fix the login bug'
-  solito run -v 'fix the bug'
-  solito run 'fix it' -- --max-turns 5
+  solito quality --agent=claude
+  solito quality -v
+  solito quality -- --max-turns 5
   solito config
 `);
 }

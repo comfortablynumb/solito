@@ -9,7 +9,7 @@ export function createDefaultConfig(): SolitoConfig {
   return {
     default_agent: "claude",
     loop: {
-      max_turn_time_minutes: 10,
+      max_turn_time_minutes: 15,
       continue_prompt: "Continue where you left off.",
       timeout_prompt: "You have reached the time limit for this loop. Please finish what you are currently doing and provide a summary of your progress.",
     },
