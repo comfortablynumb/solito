@@ -54,8 +54,16 @@ export class YamlConfigLoader implements ConfigLoader {
       return globalConfig;
     }
 
+    const merged = mergeProjectConfig(globalConfig, projectConfig);
     this.logger.info("Loaded project config from .solito/config.yaml");
-    return mergeProjectConfig(globalConfig, projectConfig);
+
+    if (projectConfig.loop?.max_turn_time_minutes !== undefined) {
+      this.logger.info(
+        `  Project overrides max_turn_time_minutes: ${globalConfig.loop.max_turn_time_minutes} -> ${merged.loop.max_turn_time_minutes}`,
+      );
+    }
+
+    return merged;
   }
 
   private async createDefaultConfigFile(): Promise<SolitoConfig> {

@@ -41,6 +41,12 @@ export function createDefaultConfig(): SolitoConfig {
           max_loops_without_enhancement: 3,
         },
       },
+      "hunt-bugs": {
+        prompt: "${var:solito_root_dir}/prompts/hunt-bugs.md",
+        variables: {
+          max_loops_without_bugs: 3,
+        },
+      },
     },
   };
 }

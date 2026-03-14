@@ -7,6 +7,8 @@ export interface RunCommand {
   prompt: string;
   rawPrompt: boolean;
   verbose: boolean;
+  spec?: string;
+  extraPrompt?: string;
   passthrough: string[];
 }
 
@@ -50,6 +52,8 @@ function parseRunArgs(args: string[], rawPrompt: boolean): CliCommand {
   const { solito: solitoArgs, passthrough } = splitAtDoubleDash(args);
   let agentName: string | undefined;
   let verbose = false;
+  let spec: string | undefined;
+  let extraPrompt: string | undefined;
   const positional: string[] = [];
 
   for (let i = 0; i < solitoArgs.length; i++) {
@@ -62,6 +66,16 @@ function parseRunArgs(args: string[], rawPrompt: boolean): CliCommand {
       agentName = arg.split("=")[1];
     } else if (arg === "--verbose" || arg === "-v") {
       verbose = true;
+    } else if (arg === "--spec") {
+      spec = requireNextArg(solitoArgs, i, arg);
+      i++;
+    } else if (arg.startsWith("--spec=")) {
+      spec = arg.split("=").slice(1).join("=");
+    } else if (arg === "--prompt" || arg === "-p") {
+      extraPrompt = requireNextArg(solitoArgs, i, arg);
+      i++;
+    } else if (arg.startsWith("--prompt=")) {
+      extraPrompt = arg.split("=").slice(1).join("=");
     } else if (arg === "--help" || arg === "-h") {
       return { kind: "help" };
     } else if (arg.startsWith("-")) {
@@ -79,7 +93,7 @@ function parseRunArgs(args: string[], rawPrompt: boolean): CliCommand {
     return { kind: "help" };
   }
 
-  return { kind: "run", agentName, prompt, rawPrompt, verbose, passthrough };
+  return { kind: "run", agentName, prompt, rawPrompt, verbose, spec, extraPrompt, passthrough };
 }
 
 function splitAtDoubleDash(args: string[]): { solito: string[]; passthrough: string[] } {
@@ -121,15 +135,19 @@ Available commands:
 ${commandList}
 
 Options:
-  --agent, -a <name>  Agent to use (default: from config)
-                      Available: ${agents}
-  --verbose, -v       Show additional metadata for each message
-  --help, -h          Show this help message
-  --                  Pass remaining flags to the underlying agent
+  --agent, -a <name>    Agent to use (default: from config)
+                        Available: ${agents}
+  --verbose, -v         Show additional metadata for each message
+  --spec <path>         Path to a spec file for context (e.g., hunt-bugs)
+  --prompt, -p <text>   Additional guidance for the agent
+  --help, -h            Show this help message
+  --                    Pass remaining flags to the underlying agent
 
 Examples:
   solito quality
   solito build
+  solito hunt-bugs
+  solito hunt-bugs --spec specs/api.md --prompt 'focus on auth module'
   solito prompt 'refactor the auth module'
   solito quality --agent=claude
   solito quality -v

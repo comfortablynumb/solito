@@ -139,6 +139,66 @@ describe("parseArgs", () => {
     });
   });
 
+  describe("--spec flag", () => {
+    it("parses --spec with value", () => {
+      const result = parseArgs(["node", "solito", "hunt-bugs", "--spec", "specs/api.md"]);
+      expect(result).toEqual({
+        kind: "run", agentName: undefined, prompt: "hunt-bugs",
+        rawPrompt: false, verbose: false, spec: "specs/api.md",
+        extraPrompt: undefined, passthrough: [],
+      });
+    });
+
+    it("parses --spec=value syntax", () => {
+      const result = parseArgs(["node", "solito", "hunt-bugs", "--spec=specs/api.md"]);
+      expect(result).toEqual({
+        kind: "run", agentName: undefined, prompt: "hunt-bugs",
+        rawPrompt: false, verbose: false, spec: "specs/api.md",
+        extraPrompt: undefined, passthrough: [],
+      });
+    });
+  });
+
+  describe("--prompt flag", () => {
+    it("parses --prompt with value", () => {
+      const result = parseArgs(["node", "solito", "hunt-bugs", "--prompt", "focus on auth"]);
+      expect(result).toEqual({
+        kind: "run", agentName: undefined, prompt: "hunt-bugs",
+        rawPrompt: false, verbose: false, spec: undefined,
+        extraPrompt: "focus on auth", passthrough: [],
+      });
+    });
+
+    it("parses -p shorthand", () => {
+      const result = parseArgs(["node", "solito", "hunt-bugs", "-p", "focus on auth"]);
+      expect(result).toEqual({
+        kind: "run", agentName: undefined, prompt: "hunt-bugs",
+        rawPrompt: false, verbose: false, spec: undefined,
+        extraPrompt: "focus on auth", passthrough: [],
+      });
+    });
+
+    it("parses --prompt=value syntax", () => {
+      const result = parseArgs(["node", "solito", "hunt-bugs", "--prompt=focus on auth"]);
+      expect(result).toEqual({
+        kind: "run", agentName: undefined, prompt: "hunt-bugs",
+        rawPrompt: false, verbose: false, spec: undefined,
+        extraPrompt: "focus on auth", passthrough: [],
+      });
+    });
+
+    it("combines --spec and --prompt", () => {
+      const result = parseArgs([
+        "node", "solito", "hunt-bugs", "--spec", "specs/api.md", "--prompt", "check auth",
+      ]);
+      expect(result).toEqual({
+        kind: "run", agentName: undefined, prompt: "hunt-bugs",
+        rawPrompt: false, verbose: false, spec: "specs/api.md",
+        extraPrompt: "check auth", passthrough: [],
+      });
+    });
+  });
+
   describe("config command", () => {
     it("parses 'config' subcommand", () => {
       expect(parseArgs(["node", "solito", "config"])).toEqual({ kind: "config" });

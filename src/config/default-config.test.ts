@@ -27,6 +27,14 @@ describe("createDefaultConfig", () => {
     expect(config.commands?.build.variables?.specs_dir).toBe("specs");
     expect(config.commands?.build.variables?.max_consecutive_failures).toBe(5);
   });
+
+  it("includes hunt-bugs command with max_loops_without_bugs default", () => {
+    const config = createDefaultConfig();
+
+    expect(config.commands?.["hunt-bugs"]).toBeDefined();
+    expect(config.commands?.["hunt-bugs"].prompt).toContain("prompts/hunt-bugs.md");
+    expect(config.commands?.["hunt-bugs"].variables?.max_loops_without_bugs).toBe(3);
+  });
 });
 
 describe("mergeWithDefaults", () => {

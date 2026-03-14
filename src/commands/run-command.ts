@@ -59,6 +59,10 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
   let lastExitCode = 0;
   let consecutiveFailures = 0;
 
+  const timeoutMs = getTimeoutMs(loopConfig);
+  const iterationTimeoutMinutes = loopConfig?.max_turn_time_minutes ?? "none";
+  logger.info(`${ANSI.DIM}Iteration timeout: ${iterationTimeoutMinutes} minutes (${timeoutMs ?? "none"}ms)${ANSI.RESET}`);
+
   try {
     while (true) {
       if (maxIterations !== undefined && iterationCount >= maxIterations && !isFinalTurn) {
@@ -67,7 +71,6 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
       }
 
       iterationCount++;
-      const timeoutMs = getTimeoutMs(loopConfig);
 
       if (isFinalTurn && stopAfterIteration.value) {
         logger.info(`Wrapping up ${agent.name} agent (stop requested)...`);

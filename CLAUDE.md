@@ -4,8 +4,8 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 
 ## Structure
 
-- `src/cli.ts` - Entry point: parses command, loads config, validates command names against built-in subcommands, dispatches to handler. For named commands, writes resolved prompt to file and injects `max_turn_time_minutes`
-- `src/args.ts` - Subcommand routing (prompt, config, help, or command name as first arg). `prompt` subcommand sets `rawPrompt: true`. No `run` subcommand — commands are invoked directly (e.g. `solito quality`)
+- `src/cli.ts` - Entry point: parses command, loads config, validates command names against built-in subcommands, dispatches to handler. For named commands, writes resolved prompt to file and injects `max_turn_time_minutes`. `buildDynamicBuiltIns()` reads `--spec` file and `--prompt` text into template variables
+- `src/args.ts` - Subcommand routing (prompt, config, help, or command name as first arg). `prompt` subcommand sets `rawPrompt: true`. Supports `--spec`, `--prompt`/`-p` flags for command-specific context
 - `src/agents/agent.ts` - `Agent` interface, `AgentHandle` (includes `iterationComplete` flag), `AgentRunOptions`
 - `src/agents/registry.ts` - Agent factory registry with `registerAgent()` / `getAgent()`
 - `src/agents/claude.ts` - Claude agent: streams JSON, detects `=== ITERATION COMPLETE ===` marker, kills process tree on completion
@@ -23,7 +23,8 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 - `src/interpolation/variable-resolver.ts` - `VariableResolver` interface, `DefaultVariableResolver`: interpolates `${var:...}` and `${env:...}` tokens
 - `src/workspace/workspace-initializer.ts` - `WorkspaceInitializer` interface, `DefaultWorkspaceInitializer`: creates `.solito/` dir, empty `config.yaml`, and `.solito/commands/{name}/` work dirs
 - `prompts/quality.md` - Quality guardian prompt template with `${var:command_work_dir}` for persistence
-- `prompts/build.md` - Build agent prompt: implements features from ordered spec files via test-driven loops
+- `prompts/build.md` - Build agent prompt: two-phase approach per spec (Phase 1: write all failing tests, Phase 2: implement to pass them). Terminates when done and suggests `solito quality`
+- `prompts/hunt-bugs.md` - Bug hunter prompt: scans code for bugs, writes failing tests, fixes them. Supports `${var:spec_section}` and `${var:user_guidance_section}` from CLI `--spec`/`--prompt` flags. Terminates after `max_loops_without_bugs` consecutive loops with no bugs found
 - `src/stream/events.ts` - Claude CLI stream-json event types (NDJSON)
 - `src/stream/parser.ts` - `StreamParser` interface, `JsonStreamParser` (logs parse errors)
 - `src/stream/formatter.ts` - `StreamFormatter` interface, `ConsoleStreamFormatter` (verbose mode, known-tool formatting, markdown rendering)

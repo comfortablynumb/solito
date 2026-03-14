@@ -30,6 +30,8 @@ solito <command> [options]
 |---|---|
 | `--agent`, `-a` | Agent to use (default: from config). Available: `claude`, `codex` |
 | `--verbose`, `-v` | Show additional metadata (message IDs, models, tokens, costs, session info) |
+| `--spec <path>` | Path to a spec file for context (used by commands like `hunt-bugs`) |
+| `--prompt`, `-p` | Additional guidance for the agent (used by commands like `hunt-bugs`) |
 | `--help`, `-h` | Show help message |
 | `--` | Separator for passthrough args sent directly to the underlying agent CLI |
 
@@ -39,6 +41,12 @@ solito <command> [options]
 # Run a named command (resolves prompt from config)
 solito quality
 solito build
+solito hunt-bugs
+
+# Hunt bugs with a spec file and/or guidance
+solito hunt-bugs --spec specs/api.md
+solito hunt-bugs --prompt 'focus on auth module'
+solito hunt-bugs --spec specs/api.md -p 'check error handling'
 
 # Run with a raw prompt
 solito prompt 'refactor the auth module'
@@ -69,7 +77,7 @@ Solito reads its config from `$HOME/.solito/config.yaml`. On first run, a defaul
 ```yaml
 default_agent: claude
 loop:
-  max_turn_time_minutes: 5
+  max_turn_time_minutes: 15
 agents:
   claude:
     type: claude
@@ -115,7 +123,7 @@ commands:
 
 Variables are interpolated in both the prompt **path** and the file **content**.
 
-Built-in commands included by default: `quality` and `build`.
+Built-in commands included by default: `quality`, `build`, and `hunt-bugs`.
 
 ### Build Command
 
@@ -145,7 +153,7 @@ solito build
 - Must not add external authentication libraries
 ```
 
-The agent reads specs in order, implements each test-first, and commits only when build passes, linter is clean, all tests pass, and coverage or complexity measurably improve. State (progress, metrics, logs) is persisted in `.solito/commands/build/`.
+The agent processes each spec in two phases: first it writes **all** failing tests covering every acceptance criterion (Phase 1), then implements the production code to make them pass one criterion at a time (Phase 2). Commits only happen when build passes, linter is clean, all tests pass, and coverage or complexity measurably improve. When all specs are complete, the agent terminates and suggests running `solito quality`. State (progress, metrics, logs) is persisted in `.solito/commands/build/`.
 
 **Variables:**
 | Variable | Default | Description |
@@ -154,6 +162,31 @@ The agent reads specs in order, implements each test-first, and commits only whe
 | `max_consecutive_failures` | `5` | Rollbacks before marking a spec as blocked |
 | `thresholds.min_coverage_pct_enhancement_per_loop` | `0.5` | Minimum coverage increase per commit |
 | `max_loops_without_enhancement` | `3` | Consecutive no-improvement loops before switching approach |
+
+### Hunt Bugs Command
+
+The `hunt-bugs` command autonomously scans the codebase for bugs, writes failing tests to prove them, and fixes them.
+
+```bash
+solito hunt-bugs
+solito hunt-bugs --spec specs/api.md
+solito hunt-bugs --prompt 'focus on the auth module'
+solito hunt-bugs --spec specs/api.md -p 'check error handling'
+```
+
+**Options:**
+
+| Option | Description |
+|---|---|
+| `--spec <path>` | Path to a spec file that describes how the app should work. The agent cross-references code against the spec to find deviations. |
+| `--prompt`, `-p` | Additional guidance to focus the agent on specific areas of the codebase. |
+
+The agent scans code using multiple strategies (code analysis, test gap analysis, spec-driven analysis). For each bug found, it writes a failing test, fixes the bug, validates (build + lint + tests), and commits. When no new bugs are found in consecutive loops, the agent terminates.
+
+**Variables:**
+| Variable | Default | Description |
+|---|---|---|
+| `max_loops_without_bugs` | `3` | Consecutive loops finding no bugs before terminating |
 
 ### Workspace Directory
 
