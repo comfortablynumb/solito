@@ -737,6 +737,47 @@ describe("executeRunCommand", () => {
     expect(after).toBe(before);
   });
 
+  it("handles SIGTERM on non-Windows platforms", async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "linux" });
+
+    const child = createMockChild();
+    const logger = createMockLogger();
+    const fs = createMockFileSystem();
+    let resolveFirstTurn!: (r: AgentResult) => void;
+
+    const agent: Agent = {
+      name: "mock-agent",
+      run: jest.fn()
+        .mockReturnValueOnce({
+          child,
+          result: new Promise<AgentResult>((resolve) => {
+            resolveFirstTurn = resolve;
+          }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
+        }),
+      isAvailable: jest.fn().mockResolvedValue(true),
+    };
+
+    const promise = executeRunCommand({
+      agent, prompt: "do stuff", logger, fs, maxIterations: 1,
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    process.emit("SIGTERM");
+
+    const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+    expect(allLogs).toContain("SIGTERM received");
+
+    resolveFirstTurn({ exitCode: 0, stdout: "", stderr: "" });
+    await promise;
+
+    Object.defineProperty(process, "platform", { value: originalPlatform });
+  });
+
   it("returns 130 when agent exits with Windows CTRL+C code", async () => {
     const ctrlC: AgentResult = { exitCode: 0xC000013A, stdout: "", stderr: "" };
     const agent = createMockAgent(ctrlC);

@@ -9,7 +9,9 @@ import { ANSI, SEPARATOR, ICONS } from "../constants";
 import { killProcessTree } from "../process/kill-process-tree";
 import * as path from "path";
 
-const IS_WINDOWS = process.platform === "win32";
+function isWindows(): boolean {
+  return process.platform === "win32";
+}
 const DEFAULT_CONTINUE_PROMPT = "Continue where you left off.";
 const DEFAULT_TIMEOUT_PROMPT =
   "You have reached the time limit for this loop. Please finish what you are currently doing and provide a summary of your progress.";
@@ -604,14 +606,14 @@ function setupSignalForwarding(options: SignalForwardingOptions): () => void {
 
   process.on("SIGINT", onSigint);
 
-  if (!IS_WINDOWS) {
+  if (!isWindows()) {
     process.on("SIGTERM", onSigterm);
   }
 
   return () => {
     process.removeListener("SIGINT", onSigint);
 
-    if (!IS_WINDOWS) {
+    if (!isWindows()) {
       process.removeListener("SIGTERM", onSigterm);
     }
   };

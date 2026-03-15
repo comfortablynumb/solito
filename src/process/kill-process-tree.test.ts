@@ -42,42 +42,48 @@ describe("killProcessTree", () => {
   });
 
   it("uses taskkill on Windows", () => {
-    // The IS_WINDOWS constant is set at module load time, so we need to
-    // test this differently - we test the Windows path by mocking execSync
-    // This test verifies the Windows-specific behavior when running on Windows
-    // Since IS_WINDOWS is a const evaluated at module load, we test both paths
-    // via the current platform
+    Object.defineProperty(process, "platform", { value: "win32" });
     const child = createMockChild();
 
-    if (process.platform === "win32") {
-      killProcessTree(child);
-      expect(childProcess.execSync).toHaveBeenCalledWith(
-        "taskkill /PID 1234 /T /F",
-        expect.objectContaining({ stdio: "ignore" }),
-      );
-    } else {
-      // On Unix, it uses process.kill with negative pid
-      const processKillSpy = jest.spyOn(process, "kill").mockImplementation(() => true);
-      killProcessTree(child);
-      expect(processKillSpy).toHaveBeenCalledWith(-1234, "SIGTERM");
-    }
+    killProcessTree(child);
+
+    expect(childProcess.execSync).toHaveBeenCalledWith(
+      "taskkill /PID 1234 /T /F",
+      expect.objectContaining({ stdio: "ignore" }),
+    );
   });
 
-  it("falls back to child.kill on error", () => {
+  it("falls back to child.kill(SIGKILL) when taskkill fails on Windows", () => {
+    Object.defineProperty(process, "platform", { value: "win32" });
+    (childProcess.execSync as jest.Mock).mockImplementation(() => {
+      throw new Error("taskkill failed");
+    });
     const child = createMockChild();
 
-    if (process.platform === "win32") {
-      (childProcess.execSync as jest.Mock).mockImplementation(() => {
-        throw new Error("taskkill failed");
-      });
-      killProcessTree(child);
-      expect(child.kill).toHaveBeenCalledWith("SIGKILL");
-    } else {
-      jest.spyOn(process, "kill").mockImplementation(() => {
-        throw new Error("No such process");
-      });
-      killProcessTree(child);
-      expect(child.kill).toHaveBeenCalledWith("SIGTERM");
-    }
+    killProcessTree(child);
+
+    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+  });
+
+  it("uses process.kill with negative pid on Unix", () => {
+    Object.defineProperty(process, "platform", { value: "linux" });
+    const processKillSpy = jest.spyOn(process, "kill").mockImplementation(() => true);
+    const child = createMockChild();
+
+    killProcessTree(child);
+
+    expect(processKillSpy).toHaveBeenCalledWith(-1234, "SIGTERM");
+  });
+
+  it("falls back to child.kill(SIGTERM) when process.kill fails on Unix", () => {
+    Object.defineProperty(process, "platform", { value: "linux" });
+    jest.spyOn(process, "kill").mockImplementation(() => {
+      throw new Error("No such process");
+    });
+    const child = createMockChild();
+
+    killProcessTree(child);
+
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
   });
 });

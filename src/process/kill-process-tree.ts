@@ -1,13 +1,11 @@
 import { ChildProcess, execSync } from "child_process";
 
-const IS_WINDOWS = process.platform === "win32";
-
 export function killProcessTree(child: ChildProcess): void {
   if (child.killed || !child.pid) {
     return;
   }
 
-  if (IS_WINDOWS) {
+  if (process.platform === "win32") {
     killWindowsProcessTree(child);
     return;
   }
