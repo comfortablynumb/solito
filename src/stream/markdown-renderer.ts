@@ -30,12 +30,6 @@ export class TerminalMarkdownRenderer implements MarkdownRenderer {
     return result.replace(/\n+$/, "\n");
   }
 
-  /**
-   * marked-terminal's text renderer uses token.text (raw markdown)
-   * instead of parsing inline sub-tokens, so bold/code/etc inside
-   * list items render as literal **text** / `code`. This patches the
-   * text renderer to use parseInline when sub-tokens are available.
-   */
   private fixInlineTokenRendering(): void {
     const renderer = this.markedInstance.defaults
       .renderer as Record<string, unknown> | undefined;
