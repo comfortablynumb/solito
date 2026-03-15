@@ -215,8 +215,8 @@ function buildCardBuilders(): string {
   }`;
 }
 
-function buildLayoutFunctions(): string {
-  return `  function ensureInstanceLayout(sid, inst, metricKeys) {
+function buildSetInstanceInfo(): string {
+  return `  function setInstanceInfo(sid, inst) {
     if (!knownInstances[sid]) {
       knownInstances[sid] = { metricKeys: [] };
     }
@@ -238,7 +238,11 @@ function buildLayoutFunctions(): string {
     if (fullpathEl) {
       fullpathEl.textContent = inst.project;
     }
+  }`;
+}
 
+function buildEnsureStatusCards(): string {
+  return `  function ensureStatusCards(sid) {
     var cardsEl = document.getElementById('inst-cards-' + sid);
 
     if (cardsEl) {
@@ -250,12 +254,17 @@ function buildLayoutFunctions(): string {
         cardsEl.insertAdjacentHTML('beforeend', buildSmallCard('Status', statusId, 'bg-slate-700/50'));
       }
     }
+  }`;
+}
 
+function buildAddNewMetricKeys(): string {
+  return `  function addNewMetricKeys(sid, metricKeys) {
     var existing = knownInstances[sid].metricKeys;
     var newKeys = metricKeys.filter(function(k) { return existing.indexOf(k) === -1; });
 
     if (newKeys.length === 0) return;
 
+    var cardsEl = document.getElementById('inst-cards-' + sid);
     var chartsEl = document.getElementById('inst-charts-' + sid);
 
     newKeys.forEach(function(key) {
@@ -277,6 +286,19 @@ function buildLayoutFunctions(): string {
       }
     });
   }`;
+}
+
+function buildLayoutFunctions(): string {
+  return [
+    buildSetInstanceInfo(),
+    buildEnsureStatusCards(),
+    buildAddNewMetricKeys(),
+    `  function ensureInstanceLayout(sid, inst, metricKeys) {
+    setInstanceInfo(sid, inst);
+    ensureStatusCards(sid);
+    addNewMetricKeys(sid, metricKeys);
+  }`,
+  ].join("\n\n");
 }
 
 function buildStatusBadgeAndSummary(): string {
@@ -333,16 +355,18 @@ function buildHistoryRows(): string {
   }`;
 }
 
-function buildDeltaHelpers(): string {
+function buildFormatDelta(): string {
   return `  function formatDelta(delta) {
     if (Math.abs(delta) < 0.05) return '';
 
     var sign = delta > 0 ? '+' : '';
     var rounded = Math.abs(delta) < 10 ? delta.toFixed(1) : Math.round(delta);
     return sign + rounded;
-  }
+  }`;
+}
 
-  var LOWER_IS_BETTER = ['complexity', 'avg_complexity', 'max_complexity'];
+function buildIsLowerBetter(): string {
+  return `  var LOWER_IS_BETTER = ['complexity', 'avg_complexity', 'max_complexity'];
 
   function isLowerBetter(key) {
     var lower = key.toLowerCase();
@@ -352,9 +376,11 @@ function buildDeltaHelpers(): string {
     }
 
     return false;
-  }
+  }`;
+}
 
-  function deltaColor(delta, metricKey) {
+function buildDeltaColor(): string {
+  return `  function deltaColor(delta, metricKey) {
     var invert = metricKey && isLowerBetter(metricKey);
     var positive = invert ? 'text-red-400' : 'text-green-400';
     var negative = invert ? 'text-green-400' : 'text-red-400';
@@ -365,49 +391,74 @@ function buildDeltaHelpers(): string {
   }`;
 }
 
-function buildMetricsUpdateHeader(): string {
-  return `  function updateMetricKey(sid, key, m, b, p, previous, dataMetrics) {
+function buildDeltaHelpers(): string {
+  return [buildFormatDelta(), buildIsLowerBetter(), buildDeltaColor()].join("\n\n");
+}
+
+function buildUpdateCurrentValue(): string {
+  return `  function updateCurrentValue(sid, key, m) {
     var el = document.getElementById('inst-m-' + sid + '-' + key);
 
     if (el) {
       el.textContent = m[key] !== undefined ? String(m[key]) : '-';
     }
+  }`;
+}
 
+function buildUpdateBaselineDelta(): string {
+  return `  function updateBaselineDelta(sid, key, m, b) {
     var deltaEl = document.getElementById('inst-m-' + sid + '-' + key + '-delta');
 
-    if (deltaEl && m[key] !== undefined && b[key] !== undefined) {
-      var delta = m[key] - b[key];
-      var text = formatDelta(delta);
+    if (!deltaEl || m[key] === undefined || b[key] === undefined) return;
 
-      if (text) {
-        deltaEl.textContent = text + ' since start';
-        deltaEl.className = 'text-xs mt-1 font-medium ' + deltaColor(delta, key);
-      } else {
-        deltaEl.textContent = 'No changes';
-        deltaEl.className = 'text-xs mt-1 font-medium text-yellow-400';
-      }
+    var delta = m[key] - b[key];
+    var text = formatDelta(delta);
+
+    if (text) {
+      deltaEl.textContent = text + ' since start';
+      deltaEl.className = 'text-xs mt-1 font-medium ' + deltaColor(delta, key);
+    } else {
+      deltaEl.textContent = 'No changes';
+      deltaEl.className = 'text-xs mt-1 font-medium text-yellow-400';
     }
+  }`;
+}
 
+function buildUpdateLastDelta(): string {
+  return `  function updateLastDelta(sid, key, m, p, previous) {
     var deltaLastEl = document.getElementById('inst-m-' + sid + '-' + key + '-delta-last');
 
-    if (deltaLastEl && m[key] !== undefined && previous && p[key] !== undefined) {
-      var lastDelta = m[key] - p[key];
-      var lastText = formatDelta(lastDelta);
+    if (!deltaLastEl || m[key] === undefined || !previous || p[key] === undefined) return;
 
-      if (lastText) {
-        deltaLastEl.textContent = lastText + ' since last loop';
-        deltaLastEl.className = 'text-xs font-medium ' + deltaColor(lastDelta, key);
-      } else {
-        deltaLastEl.textContent = '';
-      }
+    var lastDelta = m[key] - p[key];
+    var lastText = formatDelta(lastDelta);
+
+    if (lastText) {
+      deltaLastEl.textContent = lastText + ' since last loop';
+      deltaLastEl.className = 'text-xs font-medium ' + deltaColor(lastDelta, key);
+    } else {
+      deltaLastEl.textContent = '';
     }
+  }`;
+}
+
+function buildMetricsUpdateHeader(): string {
+  return [
+    buildUpdateCurrentValue(),
+    buildUpdateBaselineDelta(),
+    buildUpdateLastDelta(),
+    `  function updateMetricKey(sid, key, m, b, p, previous, dataMetrics) {
+    updateCurrentValue(sid, key, m);
+    updateBaselineDelta(sid, key, m, b);
+    updateLastDelta(sid, key, m, p, previous);
 
     if (dataMetrics.length > 0) {
       var chartId = 'chart-m-' + sid + '-' + key;
       var d = extractChartData(dataMetrics, key);
       updateChart(chartId, d.labels, d.data);
     }
-  }`;
+  }`,
+  ].join("\n\n");
 }
 
 function buildMetricsUpdateBody(): string {
@@ -436,30 +487,57 @@ function buildUpdateStatusAndHistory(): string {
   }`;
 }
 
-function buildUpdateInstanceMetrics(): string {
-  return `  function updateInstanceMetrics(sid, metrics) {
-    if (!metrics.length) return;
-
-    var dataMetrics = metrics.filter(function(m) {
+function buildFilterDataMetrics(): string {
+  return `  function filterDataMetrics(metrics) {
+    return metrics.filter(function(m) {
       return m.metrics && Object.keys(m.metrics).length > 0;
     });
+  }
 
+  function safeMetrics(entry) {
+    return entry ? (entry.metrics || {}) : {};
+  }`;
+}
+
+function buildExtractMetricSnapshots(): string {
+  return [
+    buildFilterDataMetrics(),
+    `  function extractMetricSnapshots(metrics) {
+    var dataMetrics = filterDataMetrics(metrics);
     var baseline = dataMetrics.length > 0 ? dataMetrics[0] : null;
     var previous = dataMetrics.length > 1 ? dataMetrics[dataMetrics.length - 2] : null;
     var latest = dataMetrics.length > 0 ? dataMetrics[dataMetrics.length - 1] : metrics[metrics.length - 1];
-    var m = latest.metrics || {};
-    var b = baseline ? (baseline.metrics || {}) : {};
-    var p = previous ? (previous.metrics || {}) : {};
+
+    return {
+      dataMetrics: dataMetrics,
+      m: safeMetrics(latest),
+      b: safeMetrics(baseline),
+      p: safeMetrics(previous),
+      previous: previous,
+      latest: latest
+    };
+  }`,
+  ].join("\n\n");
+}
+
+function buildUpdateInstanceMetrics(): string {
+  return [
+    buildExtractMetricSnapshots(),
+    `  function updateInstanceMetrics(sid, metrics) {
+    if (!metrics.length) return;
+
+    var snap = extractMetricSnapshots(metrics);
     var info = knownInstances[sid];
 
     if (!info) return;
 
     info.metricKeys.forEach(function(key) {
-      updateMetricKey(sid, key, m, b, p, previous, dataMetrics);
+      updateMetricKey(sid, key, snap.m, snap.b, snap.p, snap.previous, snap.dataMetrics);
     });
 
-    updateStatusAndHistory(sid, latest, dataMetrics, metrics);
-  }`;
+    updateStatusAndHistory(sid, snap.latest, snap.dataMetrics, metrics);
+  }`,
+  ].join("\n\n");
 }
 
 function buildInstanceManagement(): string {
@@ -537,7 +615,7 @@ function buildDashboardRefresh(): string {
   }`;
 }
 
-function buildModalFunctions(): string {
+function buildModalHelpers(): string {
   return `  function buildModalMetricRow(label, value) {
     return '<div class="flex justify-between py-2 border-b border-slate-700">' +
       '<span class="text-slate-400">' + label + '</span>' +
@@ -562,9 +640,11 @@ function buildModalFunctions(): string {
     });
 
     return html;
-  }
+  }`;
+}
 
-  window.showLoopModal = function(trEl) {
+function buildModalHandlers(): string {
+  return `  window.showLoopModal = function(trEl) {
     var raw = trEl.getAttribute('data-row');
     if (!raw) return;
 
@@ -595,6 +675,10 @@ function buildModalFunctions(): string {
       window.closeLoopModal();
     }
   });`;
+}
+
+function buildModalFunctions(): string {
+  return [buildModalHelpers(), buildModalHandlers()].join("\n\n");
 }
 
 function buildTsvRefresh(): string {
