@@ -25,6 +25,8 @@ function buildStateSection(): string {
   var knownInstances = {};
   var instanceRegistry = {};
   var selectedInstanceId = null;
+  var PAGE_SIZE = 10;
+  var paginationState = {};
   var CHART_COLORS = ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
   var CARD_BGS = [
     'bg-green-900/50', 'bg-amber-900/50', 'bg-blue-900/50', 'bg-red-900/50',
@@ -194,6 +196,7 @@ function buildCardBuilders(): string {
             '<tbody id="inst-history-' + sid + '" class="text-slate-300"></tbody>' +
           '</table>' +
         '</div>' +
+        '<div id="inst-pager-' + sid + '" class="flex items-center justify-between mt-2 text-xs text-slate-400"></div>' +
       '</div>' +
     '</div>';
   }
@@ -329,14 +332,14 @@ function buildStatusBadgeAndSummary(): string {
 }
 
 function buildHistoryAndDelta(): string {
-  return [buildHistoryRows(), buildDeltaHelpers()].join("\n\n");
+  return [buildHistoryRows(), buildPaginationState(), buildPagerControls(), buildPagerInteraction(), buildDeltaHelpers()].join("\n\n");
 }
 
 function buildHistoryRows(): string {
   return `  function buildHistoryRows(metrics) {
     var html = '';
 
-    for (var i = metrics.length - 1; i >= 0; i--) {
+    for (var i = 0; i < metrics.length; i++) {
       var r = metrics[i];
       var commitText = r.commit ? '<code class="text-xs bg-slate-900 px-1 py-0.5 rounded text-cyan-300">' + r.commit + '</code>' : '<span class="text-slate-500">-</span>';
 
@@ -355,6 +358,97 @@ function buildHistoryRows(): string {
   }`;
 }
 
+function buildPaginationState(): string {
+  return `  function getPage(sid) {
+    return paginationState[sid] || 1;
+  }
+
+  function setPage(sid, page) {
+    paginationState[sid] = page;
+  }
+
+  function paginateRows(allRows, sid) {
+    var page = getPage(sid);
+    var total = allRows.length;
+    var totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+    if (page > totalPages) {
+      page = totalPages;
+      setPage(sid, page);
+    }
+
+    var start = (page - 1) * PAGE_SIZE;
+    return { rows: allRows.slice(start, start + PAGE_SIZE), page: page, totalPages: totalPages, total: total };
+  }`;
+}
+
+function buildPagerControls(): string {
+  return `  function buildPagerControls(sid, page, totalPages, total) {
+    if (totalPages <= 1) return '';
+
+    var start = (page - 1) * PAGE_SIZE + 1;
+    var end = Math.min(page * PAGE_SIZE, total);
+
+    var html = '<span>' + start + '-' + end + ' of ' + total + '</span>';
+    html += '<div class="flex gap-1">';
+    html += buildNavButton(sid, 1, '&laquo;', page <= 1);
+    html += buildNavButton(sid, page - 1, '&lsaquo;', page <= 1);
+    html += '<span class="px-2 py-1">' + page + ' / ' + totalPages + '</span>';
+    html += buildNavButton(sid, page + 1, '&rsaquo;', page >= totalPages);
+    html += buildNavButton(sid, totalPages, '&raquo;', page >= totalPages);
+    html += '</div>';
+    return html;
+  }
+
+  function buildNavButton(sid, targetPage, label, isDisabled) {
+    return '<button class="pager-btn px-2 py-1 rounded bg-slate-700 hover:bg-slate-600'
+      + (isDisabled ? ' opacity-40 cursor-default' : '') + '"'
+      + ' data-sid="' + sid + '" data-page="' + targetPage + '"'
+      + (isDisabled ? ' disabled' : '') + '>' + label + '</button>';
+  }`;
+}
+
+function buildPagerInteraction(): string {
+  return `  window.handlePagerClick = function(sid, page) {
+    setPage(sid, page);
+    var state = paginationState[sid + '_rows'];
+
+    if (state) {
+      renderHistoryPage(sid, state);
+    }
+  };
+
+  function renderHistoryPage(sid, allRows) {
+    paginationState[sid + '_rows'] = allRows;
+    var result = paginateRows(allRows, sid);
+    var historyEl = document.getElementById('inst-history-' + sid);
+
+    if (historyEl) {
+      historyEl.innerHTML = buildHistoryRows(result.rows);
+    }
+
+    var pagerEl = document.getElementById('inst-pager-' + sid);
+
+    if (pagerEl) {
+      pagerEl.innerHTML = buildPagerControls(sid, result.page, result.totalPages, result.total);
+      bindPagerButtons(pagerEl);
+    }
+  }
+
+  function bindPagerButtons(pagerEl) {
+    pagerEl.querySelectorAll('.pager-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var s = btn.getAttribute('data-sid');
+        var p = parseInt(btn.getAttribute('data-page'), 10);
+
+        if (s && p) {
+          window.handlePagerClick(s, p);
+        }
+      });
+    });
+  }`;
+}
+
 function buildFormatDelta(): string {
   return `  function formatDelta(delta) {
     if (Math.abs(delta) < 0.05) return '';
@@ -366,7 +460,11 @@ function buildFormatDelta(): string {
 }
 
 function buildIsLowerBetter(): string {
-  return `  var LOWER_IS_BETTER = ['complexity', 'avg_complexity', 'max_complexity'];
+  return `  var LOWER_IS_BETTER = [
+    'complexity', 'avg_complexity', 'max_complexity',
+    'lint', 'linter', 'warning', 'error', 'fail',
+    'violation', 'issue', 'bug', 'debt', 'duplicate', 'smell'
+  ];
 
   function isLowerBetter(key) {
     var lower = key.toLowerCase();
@@ -479,11 +577,9 @@ function buildUpdateStatusAndHistory(): string {
       statusEl.textContent = latest.status || '-';
     }
 
-    var historyEl = document.getElementById('inst-history-' + sid);
-
-    if (historyEl) {
-      historyEl.innerHTML = buildHistoryRows(dataMetrics.length > 0 ? dataMetrics : metrics);
-    }
+    var source = dataMetrics.length > 0 ? dataMetrics : metrics;
+    var reversed = source.slice().reverse();
+    renderHistoryPage(sid, reversed);
   }`;
 }
 
