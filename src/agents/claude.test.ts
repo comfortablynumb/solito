@@ -332,6 +332,78 @@ describe("ClaudeAgent", () => {
     expect(handle.iterationComplete.value).toBe(false);
   });
 
+  it("returns true from isAvailable when claude command exists", async () => {
+    const deps = createMockDeps(mockResult);
+    const agent = new ClaudeAgent(deps);
+
+    const commandUtil = await import("../util/command");
+    jest.spyOn(commandUtil, "commandExists").mockResolvedValue(true);
+
+    const result = await agent.isAvailable();
+    expect(result).toBe(true);
+  });
+
+  it("returns false from isAvailable when claude command is missing", async () => {
+    const deps = createMockDeps(mockResult);
+    const agent = new ClaudeAgent(deps);
+
+    const commandUtil = await import("../util/command");
+    jest.spyOn(commandUtil, "commandExists").mockResolvedValue(false);
+
+    const result = await agent.isAvailable();
+    expect(result).toBe(false);
+  });
+
+  it("handles child without stdin gracefully", async () => {
+    const deps = createMockDeps(mockResult);
+    const child = createMockChild();
+    // Remove stdin
+    Object.defineProperty(child, "stdin", { value: null, writable: true });
+
+    deps.spawner.spawn.mockReturnValue({
+      child,
+      result: Promise.resolve(mockResult),
+    });
+
+    const agent = new ClaudeAgent(deps);
+    const handle = agent.run("do stuff");
+    await handle.result;
+
+    // Should not throw — sendInitialPrompt returns early when no stdin
+    expect(handle.iterationComplete.value).toBe(false);
+  });
+
+  it("returns false from containsMarker for non-text non-assistant messages", async () => {
+    const deps = createMockDeps(mockResult);
+    const child = createMockChild();
+    // A stream_event that's not a text_delta (e.g. tool_use)
+    const toolMessage: CliMessage = {
+      type: "stream_event",
+      event: {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "tool_use", id: "t1", name: "Bash", input: {} },
+      },
+    };
+
+    (deps.parser.parseLine as jest.Mock).mockReturnValue(toolMessage);
+
+    let capturedOnLine: ((line: string) => void) | null = null;
+    deps.spawner.spawn.mockImplementation((options: StreamingSpawnOptions) => {
+      capturedOnLine = options.onLine;
+      return { child, result: Promise.resolve(mockResult) };
+    });
+
+    const agent = new ClaudeAgent(deps);
+    const handle = agent.run("do stuff");
+    capturedOnLine!("tool use line");
+    await handle.result;
+
+    // containsMarker returns false for tool_use messages
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(handle.iterationComplete.value).toBe(false);
+  });
+
   it("does not log command or raw lines when not verbose", async () => {
     const deps = createMockDeps(mockResult);
     const logger = createMockLogger();

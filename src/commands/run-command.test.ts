@@ -515,6 +515,160 @@ describe("executeRunCommand", () => {
     jest.useRealTimers();
   });
 
+  it("debounces rapid double SIGINT (ignores second within 500ms)", async () => {
+    const child = createMockChild();
+    const logger = createMockLogger();
+    const fs = createMockFileSystem();
+    let resolveFirstTurn!: (r: AgentResult) => void;
+
+    const agent: Agent = {
+      name: "mock-agent",
+      run: jest.fn()
+        .mockReturnValueOnce({
+          child,
+          result: new Promise<AgentResult>((resolve) => {
+            resolveFirstTurn = resolve;
+          }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
+        })
+        .mockReturnValue({
+          child,
+          result: Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
+        }),
+      isAvailable: jest.fn().mockResolvedValue(true),
+    };
+
+    const mockExit = jest.spyOn(process, "exit").mockImplementation(() => undefined as never);
+
+    const promise = executeRunCommand({
+      agent, prompt: "do stuff", logger, fs, maxIterations: 3,
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // First SIGINT — sets stopAfterIteration
+    process.emit("SIGINT");
+    // Second SIGINT within debounce window (< 500ms) — should be ignored
+    process.emit("SIGINT");
+
+    // process.exit should NOT have been called (debounced)
+    expect(mockExit).not.toHaveBeenCalled();
+
+    // Resolve and clean up
+    resolveFirstTurn({ exitCode: 130, stdout: "", stderr: "" });
+    await promise;
+
+    mockExit.mockRestore();
+  });
+
+  it("returns 130 when interrupted flag is set during agent run", async () => {
+    const child = createMockChild();
+    const logger = createMockLogger();
+    const fs = createMockFileSystem();
+    let resolveFirstTurn!: (r: AgentResult) => void;
+
+    const agent: Agent = {
+      name: "mock-agent",
+      run: jest.fn()
+        .mockReturnValueOnce({
+          child,
+          result: new Promise<AgentResult>((resolve) => {
+            resolveFirstTurn = resolve;
+          }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
+        }),
+      isAvailable: jest.fn().mockResolvedValue(true),
+    };
+
+    // Mock process.exit to prevent actually exiting and set interrupted
+    const mockExit = jest.spyOn(process, "exit").mockImplementation(() => {
+      resolveFirstTurn({ exitCode: 130, stdout: "", stderr: "" });
+      return undefined as never;
+    });
+
+    const promise = executeRunCommand({
+      agent, prompt: "do stuff", logger, fs, maxIterations: 3,
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // First SIGINT
+    process.emit("SIGINT");
+    // Second SIGINT (force quit sets interrupted)
+    await new Promise((r) => setTimeout(r, 600));
+    process.emit("SIGINT");
+
+    const code = await promise;
+
+    const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+    expect(allLogs).toContain("Interrupted");
+    expect(code).toBe(130);
+
+    mockExit.mockRestore();
+  });
+
+  it("returns 130 on double SIGINT (force quit)", async () => {
+    const child = createMockChild();
+    const logger = createMockLogger();
+    const fs = createMockFileSystem();
+    let resolveFirstTurn!: (r: AgentResult) => void;
+
+    const agent: Agent = {
+      name: "mock-agent",
+      run: jest.fn()
+        .mockReturnValueOnce({
+          child,
+          result: new Promise<AgentResult>((resolve) => {
+            resolveFirstTurn = resolve;
+          }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
+        })
+        .mockReturnValue({
+          child,
+          result: Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
+        }),
+      isAvailable: jest.fn().mockResolvedValue(true),
+    };
+
+    // Mock process.exit to prevent actually exiting
+    const mockExit = jest.spyOn(process, "exit").mockImplementation(() => {
+      // Resolve the first turn to unblock the loop
+      resolveFirstTurn({ exitCode: 130, stdout: "", stderr: "" });
+      return undefined as never;
+    });
+
+    const promise = executeRunCommand({
+      agent, prompt: "do stuff", logger, fs, maxIterations: 3,
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // First SIGINT — sets stopAfterIteration
+    process.emit("SIGINT");
+
+    // Second SIGINT — force quit (with enough delay to bypass debounce)
+    await new Promise((r) => setTimeout(r, 600));
+    process.emit("SIGINT");
+
+    await promise;
+
+    const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+    expect(allLogs).toContain("force quitting");
+    expect(mockExit).toHaveBeenCalledWith(130);
+
+    mockExit.mockRestore();
+  });
+
   it("runs wrap-up turn on first CTRL+C then stops gracefully", async () => {
     const sigint: AgentResult = { exitCode: 130, stdout: "", stderr: "" };
     const ok: AgentResult = { exitCode: 0, stdout: "", stderr: "" };
@@ -844,6 +998,113 @@ describe("executeRunCommand", () => {
       jest.useRealTimers();
 
       expect(child.stdin!.write).not.toHaveBeenCalled();
+    });
+
+    it("logs stdin messages when verbose mode is enabled", async () => {
+      jest.useFakeTimers();
+      const child = createMockChild();
+      const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+      let resolveFirstTurn!: (r: AgentResult) => void;
+      const logger = createMockLogger();
+      const fs = createMockFileSystem();
+
+      const agent: Agent = {
+        name: "mock-agent",
+        run: jest.fn()
+          .mockReturnValueOnce({
+            child,
+            result: new Promise<AgentResult>((resolve) => {
+              resolveFirstTurn = resolve;
+            }),
+            iterationComplete: { value: false },
+            exitRequested: { value: false },
+          })
+          .mockReturnValue({
+            child,
+            result: Promise.resolve(ok),
+            iterationComplete: { value: false },
+            exitRequested: { value: false },
+          }),
+        isAvailable: jest.fn().mockResolvedValue(true),
+      };
+
+      const promise = executeRunCommand({
+        agent,
+        prompt: "do stuff",
+        loopConfig: { max_turn_time_minutes: 10 },
+        logger,
+        verbose: true,
+        fs,
+        maxIterations: 2,
+      });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Advance past soft warning (5 min from end = 5 min in)
+      jest.advanceTimersByTime(5 * 60 * 1000);
+
+      const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+      expect(allLogs).toContain("[stdin]");
+
+      // Advance to kill time
+      jest.advanceTimersByTime(5 * 60 * 1000);
+      resolveFirstTurn({ exitCode: 130, stdout: "", stderr: "" });
+      await promise;
+      jest.useRealTimers();
+    });
+
+    it("formats elapsed time with hours when > 60 minutes", async () => {
+      jest.useFakeTimers();
+      const child = createMockChild();
+      const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+      let resolveFirstTurn!: (r: AgentResult) => void;
+      const logger = createMockLogger();
+
+      const agent: Agent = {
+        name: "mock-agent",
+        run: jest.fn()
+          .mockReturnValueOnce({
+            child,
+            result: new Promise<AgentResult>((resolve) => {
+              resolveFirstTurn = resolve;
+            }),
+            iterationComplete: { value: false },
+            exitRequested: { value: false },
+          })
+          .mockReturnValue({
+            child,
+            result: Promise.resolve(ok),
+            iterationComplete: { value: false },
+            exitRequested: { value: false },
+          }),
+        isAvailable: jest.fn().mockResolvedValue(true),
+      };
+
+      const promise = executeRunCommand({
+        agent,
+        prompt: "do stuff",
+        logger,
+        maxIterations: 2,
+      });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Advance 61 minutes to trigger minute ticker with hours format
+      jest.advanceTimersByTime(61 * 60 * 1000);
+
+      const tickLogs = logger.info.mock.calls
+        .map((c: unknown[]) => c[0] as string)
+        .filter((s: string) => s.includes(ICONS.TIME));
+
+      // The 61st tick should show "1h 1m"
+      const lastTick = tickLogs[tickLogs.length - 1];
+      expect(lastTick).toContain("1h");
+
+      resolveFirstTurn(ok);
+      await promise;
+      jest.useRealTimers();
     });
 
     it("cleans up progress file after loop ends", async () => {

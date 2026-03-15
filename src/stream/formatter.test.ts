@@ -800,4 +800,41 @@ describe("ConsoleStreamFormatter", () => {
       expect(output.write).not.toHaveBeenCalled();
     });
   });
+
+  it("skips flushTextDisplay when no markdownRenderer is provided", () => {
+    const output = createMockOutput();
+    const formatter = new ConsoleStreamFormatter({ output });
+
+    // Start a text block
+    formatter.format({
+      type: "stream_event",
+      event: {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "text", text: "" },
+      },
+    });
+
+    // Add text delta (streams directly when no renderer)
+    formatter.format({
+      type: "stream_event",
+      event: {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: "some text" },
+      },
+    });
+    output.write.mockClear();
+
+    // Stop block — flushTextDisplay should return early (no renderer)
+    formatter.format({
+      type: "stream_event",
+      event: { type: "content_block_stop", index: 0 },
+    });
+
+    // Should only write newline, no rendered content
+    const text = output.getOutput();
+    expect(text).not.toContain("RENDERED");
+    expect(text).toContain("\n");
+  });
 });

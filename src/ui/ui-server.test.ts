@@ -50,6 +50,21 @@ describe("UiServer", () => {
     await server2.stop();
   });
 
+  it("dispatches requests to the route dispatcher", async () => {
+    const dispatcher = createMockDispatcher();
+    const logger = createMockLogger();
+    server = new UiServer({ dispatcher, host: "127.0.0.1", port: 0, logger });
+
+    await server.start();
+
+    const addr = (server as unknown as { server: { address: () => { port: number } } }).server.address();
+    const res = await fetch(`http://127.0.0.1:${addr.port}/`);
+    const body = await res.text();
+
+    expect(body).toBe("ok");
+    expect(dispatcher.dispatch).toHaveBeenCalled();
+  });
+
   it("stops cleanly", async () => {
     const dispatcher = createMockDispatcher();
     const logger = createMockLogger();
