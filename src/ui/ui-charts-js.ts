@@ -307,6 +307,10 @@ function buildStatusBadgeAndSummary(): string {
 }
 
 function buildHistoryAndDelta(): string {
+  return [buildHistoryRows(), buildDeltaHelpers()].join("\n\n");
+}
+
+function buildHistoryRows(): string {
   return `  function buildHistoryRows(metrics) {
     var html = '';
 
@@ -326,9 +330,11 @@ function buildHistoryAndDelta(): string {
     }
 
     return html;
-  }
+  }`;
+}
 
-  function formatDelta(delta) {
+function buildDeltaHelpers(): string {
+  return `  function formatDelta(delta) {
     if (Math.abs(delta) < 0.05) return '';
 
     var sign = delta > 0 ? '+' : '';
@@ -405,6 +411,10 @@ function buildMetricsUpdateHeader(): string {
 }
 
 function buildMetricsUpdateBody(): string {
+  return [buildUpdateStatusAndHistory(), buildUpdateInstanceMetrics()].join("\n\n");
+}
+
+function buildUpdateStatusAndHistory(): string {
   return `  function updateStatusAndHistory(sid, latest, dataMetrics, metrics) {
     var loopEl = document.getElementById('inst-loop-' + sid);
 
@@ -423,9 +433,11 @@ function buildMetricsUpdateBody(): string {
     if (historyEl) {
       historyEl.innerHTML = buildHistoryRows(dataMetrics.length > 0 ? dataMetrics : metrics);
     }
-  }
+  }`;
+}
 
-  function updateInstanceMetrics(sid, metrics) {
+function buildUpdateInstanceMetrics(): string {
+  return `  function updateInstanceMetrics(sid, metrics) {
     if (!metrics.length) return;
 
     var dataMetrics = metrics.filter(function(m) {

@@ -56,4 +56,27 @@ describe("TerminalMarkdownRenderer", () => {
     const result = renderer.render("Run **`npm test`** to check");
     expect(result).toContain("npm test");
   });
+
+  it("returns raw markdown when parse returns non-string", () => {
+    const r = new TerminalMarkdownRenderer();
+    // Force parse to return a Promise (non-string) by monkey-patching
+    const markedInstance = (r as unknown as { markedInstance: { parse: unknown } }).markedInstance;
+    markedInstance.parse = () => Promise.resolve("async result");
+
+    const result = r.render("some **markdown**");
+    expect(result).toBe("some **markdown**");
+  });
+
+  it("handles missing renderer in defaults gracefully", () => {
+    const r = new TerminalMarkdownRenderer();
+    const markedInstance = (r as unknown as { markedInstance: { defaults: { renderer: unknown } } }).markedInstance;
+    // Wipe the renderer and re-invoke fixInlineTokenRendering
+    markedInstance.defaults.renderer = undefined;
+    const fix = (r as unknown as { fixInlineTokenRendering: () => void }).fixInlineTokenRendering.bind(r);
+    // Should not throw
+    fix();
+    // Rendering should still work (though without custom text handling)
+    const result = r.render("hello");
+    expect(typeof result).toBe("string");
+  });
 });
