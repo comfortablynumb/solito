@@ -10,14 +10,24 @@ export interface RunCommand {
   spec?: string;
   extraPrompt?: string;
   passthrough: string[];
+  reportMetrics: boolean;
+  apiHost: string;
+  apiPort: number;
+}
+
+export interface UiCommand {
+  kind: "ui";
+  host: string;
+  port: number;
 }
 
 export type CliCommand =
   | RunCommand
+  | UiCommand
   | { kind: "config" }
   | { kind: "help" };
 
-const BUILT_IN_SUBCOMMANDS = ["prompt", "config", "help"];
+const BUILT_IN_SUBCOMMANDS = ["prompt", "config", "help", "ui"];
 
 export function listBuiltInSubcommands(): string[] {
   return BUILT_IN_SUBCOMMANDS;
@@ -36,6 +46,10 @@ export function parseArgs(argv: string[]): CliCommand {
     return { kind: "config" };
   }
 
+  if (subcommand === "ui") {
+    return parseUiArgs(args.slice(1));
+  }
+
   if (subcommand === "--help" || subcommand === "-h" || subcommand === "help") {
     return { kind: "help" };
   }
@@ -48,52 +62,153 @@ export function parseArgs(argv: string[]): CliCommand {
   return parseRunArgs(args, false);
 }
 
+interface RunArgState {
+  agentName?: string;
+  verbose: boolean;
+  spec?: string;
+  extraPrompt?: string;
+  reportMetrics: boolean;
+  apiHost: string;
+  apiPort: number;
+  positional: string[];
+}
+
+function createDefaultRunArgState(): RunArgState {
+  return {
+    verbose: false,
+    reportMetrics: false,
+    apiHost: "localhost",
+    apiPort: 19191,
+    positional: [],
+  };
+}
+
+type FlagResult = { skip: number } | { help: true };
+
+function handleValueFlag(
+  args: string[], i: number, arg: string, flags: string[], equalPrefix: string,
+  setter: (value: string) => void,
+): FlagResult | null {
+  if (flags.includes(arg)) {
+    setter(requireNextArg(args, i, arg));
+    return { skip: 1 };
+  }
+
+  if (arg.startsWith(equalPrefix)) {
+    setter(arg.split("=").slice(1).join("="));
+    return { skip: 0 };
+  }
+
+  return null;
+}
+
+interface ValueFlagDef {
+  flags: string[];
+  equalPrefix: string;
+  setter: (value: string) => void;
+}
+
+function buildValueFlagDefs(state: RunArgState): ValueFlagDef[] {
+  return [
+    { flags: ["--agent", "-a"], equalPrefix: "--agent=", setter: (v) => { state.agentName = v; } },
+    { flags: ["--spec"], equalPrefix: "--spec=", setter: (v) => { state.spec = v; } },
+    { flags: ["--prompt", "-p"], equalPrefix: "--prompt=", setter: (v) => { state.extraPrompt = v; } },
+    { flags: ["--api-host"], equalPrefix: "--api-host=", setter: (v) => { state.apiHost = v; } },
+    { flags: ["--api-port"], equalPrefix: "--api-port=", setter: (v) => { state.apiPort = parseInt(v, 10); } },
+  ];
+}
+
+function processBooleanFlag(arg: string, state: RunArgState): FlagResult | null {
+  if (arg === "--verbose" || arg === "-v") {
+    state.verbose = true;
+    return { skip: 0 };
+  }
+
+  if (arg === "--report-metrics") {
+    state.reportMetrics = true;
+    return { skip: 0 };
+  }
+
+  if (arg === "--help" || arg === "-h") {
+    return { help: true };
+  }
+
+  return null;
+}
+
+function processRunFlag(args: string[], i: number, arg: string, state: RunArgState): FlagResult | null {
+  const boolResult = processBooleanFlag(arg, state);
+
+  if (boolResult) return boolResult;
+
+  for (const def of buildValueFlagDefs(state)) {
+    const result = handleValueFlag(args, i, arg, def.flags, def.equalPrefix, def.setter);
+
+    if (result) return result;
+  }
+
+  return null;
+}
+
 function parseRunArgs(args: string[], rawPrompt: boolean): CliCommand {
   const { solito: solitoArgs, passthrough } = splitAtDoubleDash(args);
-  let agentName: string | undefined;
-  let verbose = false;
-  let spec: string | undefined;
-  let extraPrompt: string | undefined;
-  const positional: string[] = [];
+  const state = createDefaultRunArgState();
 
   for (let i = 0; i < solitoArgs.length; i++) {
     const arg = solitoArgs[i];
+    const result = processRunFlag(solitoArgs, i, arg, state);
 
-    if (arg === "--agent" || arg === "-a") {
-      agentName = requireNextArg(solitoArgs, i, arg);
-      i++;
-    } else if (arg.startsWith("--agent=")) {
-      agentName = arg.split("=")[1];
-    } else if (arg === "--verbose" || arg === "-v") {
-      verbose = true;
-    } else if (arg === "--spec") {
-      spec = requireNextArg(solitoArgs, i, arg);
-      i++;
-    } else if (arg.startsWith("--spec=")) {
-      spec = arg.split("=").slice(1).join("=");
-    } else if (arg === "--prompt" || arg === "-p") {
-      extraPrompt = requireNextArg(solitoArgs, i, arg);
-      i++;
-    } else if (arg.startsWith("--prompt=")) {
-      extraPrompt = arg.split("=").slice(1).join("=");
-    } else if (arg === "--help" || arg === "-h") {
+    if (result && "help" in result) {
       return { kind: "help" };
+    }
+
+    if (result) {
+      i += result.skip;
     } else if (arg.startsWith("-")) {
       console.error(`Unknown option: ${arg}`);
       return { kind: "help" };
     } else {
-      positional.push(arg);
+      state.positional.push(arg);
     }
   }
 
-  const prompt = positional.join(" ");
+  const prompt = state.positional.join(" ");
 
   if (!prompt) {
     console.error("Error: prompt is required");
     return { kind: "help" };
   }
 
-  return { kind: "run", agentName, prompt, rawPrompt, verbose, spec, extraPrompt, passthrough };
+  return {
+    kind: "run", agentName: state.agentName, prompt, rawPrompt, verbose: state.verbose,
+    spec: state.spec, extraPrompt: state.extraPrompt, passthrough, reportMetrics: state.reportMetrics,
+    apiHost: state.apiHost, apiPort: state.apiPort,
+  };
+}
+
+function parseUiArgs(args: string[]): CliCommand {
+  let host = "0.0.0.0";
+  let port = 19191;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg === "--host") {
+      host = requireNextArg(args, i, arg);
+      i++;
+    } else if (arg.startsWith("--host=")) {
+      host = arg.split("=").slice(1).join("=");
+    } else if (arg === "--port") {
+      port = parseInt(requireNextArg(args, i, arg), 10);
+      i++;
+    } else if (arg.startsWith("--port=")) {
+      port = parseInt(arg.split("=")[1], 10);
+    } else if (arg === "--help" || arg === "-h") {
+      return { kind: "help" };
+    }
+  }
+
+  return { kind: "ui", host, port };
 }
 
 function splitAtDoubleDash(args: string[]): { solito: string[]; passthrough: string[] } {
@@ -129,6 +244,7 @@ Usage: solito <command> [options]
 Commands:
   prompt [options] <prompt>   Run an agent with a raw prompt
   config                      Show current configuration
+  ui                          Start the metrics dashboard
   help                        Show this help message
 
 Available commands:
@@ -140,18 +256,29 @@ Options:
   --verbose, -v         Show additional metadata for each message
   --spec <path>         Path to a spec file for context (e.g., hunt-bugs)
   --prompt, -p <text>   Additional guidance for the agent
+  --report-metrics      Send metrics to a running solito ui server
+  --api-host <host>     Metrics server host (default: localhost)
+  --api-port <port>     Metrics server port (default: 19191)
   --help, -h            Show this help message
   --                    Pass remaining flags to the underlying agent
+
+UI Options:
+  --host <host>         Dashboard bind address (default: 0.0.0.0)
+  --port <port>         Dashboard port (default: 19191)
 
 Examples:
   solito quality
   solito build
   solito hunt-bugs
   solito hunt-bugs --spec specs/api.md --prompt 'focus on auth module'
+  solito generate-spec 'Add new endpoint /api/users to create users'
   solito prompt 'refactor the auth module'
   solito quality --agent=claude
   solito quality -v
+  solito quality --report-metrics
   solito quality -- --max-turns 5
+  solito ui
+  solito ui --port 8080
   solito config
 `);
 }

@@ -31,153 +31,238 @@ export interface RunCommandParams {
   maxIterations?: number;
 }
 
-export async function executeRunCommand(params: RunCommandParams): Promise<number> {
-  const { agent, prompt, agentConfig, loopConfig, passthrough, maxIterations, verbose } = params;
-  const logger = params.logger ?? new ConsoleLogger();
-  const fs = params.fs ?? new DefaultFileSystem();
-  const verboseLogger = verbose ? logger : undefined;
+interface LoopState {
+  currentPrompt: string;
+  isFirstRun: boolean;
+  isFinalTurn: boolean;
+  iterationCount: number;
+  lastExitCode: number;
+  consecutiveFailures: number;
+}
 
-  const available = await agent.isAvailable();
+interface LoopContext {
+  agent: Agent;
+  agentConfig?: AgentConfig;
+  loopConfig?: LoopConfig;
+  passthrough?: string[];
+  progressFilePath: string;
+  verbose?: boolean;
+  logger: Logger;
+  fs: FileSystem;
+  maxIterations?: number;
+  timeoutMs?: number;
+  continuePrompt: string;
+  timeoutPrompt: string;
+  interrupted: { value: boolean };
+  stopAfterIteration: { value: boolean };
+  timedOut: { value: boolean };
+  startTime: number;
+}
+
+export async function executeRunCommand(params: RunCommandParams): Promise<number> {
+  const ctx = buildLoopContext(params);
+
+  const available = await ctx.agent.isAvailable();
 
   if (!available) {
-    logger.error(`Error: "${agent.name}" is not installed or not in PATH.`);
+    ctx.logger.error(`Error: "${ctx.agent.name}" is not installed or not in PATH.`);
     return 1;
   }
 
-  const progressFilePath = getProgressFilePath(params.progressDir);
-  const continuePrompt = loopConfig?.continue_prompt ?? DEFAULT_CONTINUE_PROMPT;
-  const timeoutPrompt = loopConfig?.timeout_prompt ?? DEFAULT_TIMEOUT_PROMPT;
-  const interrupted = { value: false };
-  const stopAfterIteration = { value: false };
-  const timedOut = { value: false };
-  const startTime = Date.now();
+  const iterationTimeoutMinutes = ctx.loopConfig?.max_turn_time_minutes ?? "none";
+  ctx.logger.info(`${ANSI.DIM}Iteration timeout: ${iterationTimeoutMinutes} minutes (${ctx.timeoutMs ?? "none"}ms)${ANSI.RESET}`);
 
-  let currentPrompt = prompt;
-  let isFirstRun = true;
-  let isFinalTurn = false;
-  let iterationCount = 0;
-  let lastExitCode = 0;
-  let consecutiveFailures = 0;
-
-  const timeoutMs = getTimeoutMs(loopConfig);
-  const iterationTimeoutMinutes = loopConfig?.max_turn_time_minutes ?? "none";
-  logger.info(`${ANSI.DIM}Iteration timeout: ${iterationTimeoutMinutes} minutes (${timeoutMs ?? "none"}ms)${ANSI.RESET}`);
+  const state: LoopState = {
+    currentPrompt: params.prompt,
+    isFirstRun: true,
+    isFinalTurn: false,
+    iterationCount: 0,
+    lastExitCode: 0,
+    consecutiveFailures: 0,
+  };
 
   try {
-    while (true) {
-      if (maxIterations !== undefined && iterationCount >= maxIterations && !isFinalTurn) {
-        logger.info(`Reached maximum iterations (${maxIterations}).`);
-        return lastExitCode;
-      }
-
-      iterationCount++;
-
-      if (isFinalTurn && stopAfterIteration.value) {
-        logger.info(`Wrapping up ${agent.name} agent (stop requested)...`);
-      } else if (isFinalTurn) {
-        logger.info(`Wrapping up ${agent.name} agent (time limit reached)...`);
-      } else if (isFirstRun) {
-        logger.info(`Running ${agent.name} agent...`);
-      } else {
-        writeLoopTransition({ agent, iterationCount, startTime, logger });
-      }
-
-      if (isFinalTurn) {
-        writeUserPrompt(currentPrompt, logger);
-      }
-
-      const options = buildRunOptions({
-        agentConfig, loopConfig, passthrough, progressFilePath, isFirstIteration: isFirstRun,
-      });
-      const handle = agent.run(currentPrompt, options);
-      interrupted.value = false;
-      timedOut.value = false;
-      const cleanupSignals = setupSignalForwarding({
-        child: handle.child, interrupted, stopAfterIteration, logger,
-      });
-      const cleanupTimeout = setupTimeoutWarnings({
-        timedOut,
-        timeoutMs,
-        child: handle.child,
-        logger,
-        verboseLogger,
-      });
-      const cleanupTicker = setupMinuteTicker(logger, startTime);
-
-      try {
-        const result = await handle.result;
-
-        if (interrupted.value) {
-          writeInterruptBanner(logger, startTime);
-          return 130;
-        }
-
-        if (stopAfterIteration.value && !isFinalTurn) {
-          isFinalTurn = true;
-          isFirstRun = false;
-          currentPrompt = await buildStopPrompt({ fs, progressFilePath });
-          continue;
-        }
-
-        if (stopAfterIteration.value && isFinalTurn) {
-          break;
-        }
-
-        if (isInterruptExitCode(result.exitCode) && !timedOut.value) {
-          writeInterruptBanner(logger, startTime);
-          return 130;
-        }
-
-        if (handle.exitRequested.value) {
-          logger.error("Agent requested exit. Cannot continue without required tools.");
-          return 1;
-        }
-
-        const killedByTimeout = timedOut.value && isInterruptExitCode(result.exitCode);
-        lastExitCode = (handle.iterationComplete.value || killedByTimeout) ? 0 : result.exitCode;
-
-        if (lastExitCode !== 0) {
-          logAgentError(logger, result.exitCode, result.stderr);
-
-          if (isFirstRun) {
-            return result.exitCode;
-          }
-
-          consecutiveFailures++;
-
-          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-            logger.error(`Agent failed ${MAX_CONSECUTIVE_FAILURES} times in a row. Stopping.`);
-            return result.exitCode;
-          }
-        } else {
-          consecutiveFailures = 0;
-        }
-      } finally {
-        cleanupSignals();
-        cleanupTimeout();
-        cleanupTicker();
-      }
-
-      const nextPrompt = await buildContinuationPrompt({
-        fs,
-        progressFilePath,
-        timedOut: timedOut.value,
-        continuePrompt,
-        timeoutPrompt,
-      });
-
-      currentPrompt = nextPrompt;
-      isFinalTurn = timedOut.value;
-      isFirstRun = false;
-    }
-
-    if (stopAfterIteration.value) {
-      writeStopBanner(logger, startTime);
-    }
-
-    return lastExitCode;
+    return await runLoop(ctx, state);
   } finally {
-    await cleanupProgressFile(fs, progressFilePath);
+    await cleanupProgressFile(ctx.fs, ctx.progressFilePath);
+  }
+}
+
+function buildLoopContext(params: RunCommandParams): LoopContext {
+  const logger = params.logger ?? new ConsoleLogger();
+  const fs = params.fs ?? new DefaultFileSystem();
+
+  return {
+    agent: params.agent,
+    agentConfig: params.agentConfig,
+    loopConfig: params.loopConfig,
+    passthrough: params.passthrough,
+    progressFilePath: getProgressFilePath(params.progressDir),
+    verbose: params.verbose,
+    logger,
+    fs,
+    maxIterations: params.maxIterations,
+    timeoutMs: getTimeoutMs(params.loopConfig),
+    continuePrompt: params.loopConfig?.continue_prompt ?? DEFAULT_CONTINUE_PROMPT,
+    timeoutPrompt: params.loopConfig?.timeout_prompt ?? DEFAULT_TIMEOUT_PROMPT,
+    interrupted: { value: false },
+    stopAfterIteration: { value: false },
+    timedOut: { value: false },
+    startTime: Date.now(),
+  };
+}
+
+async function runLoop(ctx: LoopContext, state: LoopState): Promise<number> {
+  while (true) {
+    if (ctx.maxIterations !== undefined && state.iterationCount >= ctx.maxIterations && !state.isFinalTurn) {
+      ctx.logger.info(`Reached maximum iterations (${ctx.maxIterations}).`);
+      return state.lastExitCode;
+    }
+
+    state.iterationCount++;
+    logIterationStart(ctx, state);
+
+    const iterResult = await runSingleIteration(ctx, state);
+
+    if (iterResult.action === "return") return iterResult.code;
+
+    if (iterResult.action === "continue") continue;
+
+    if (iterResult.action === "break") break;
+
+    state.currentPrompt = await buildContinuationPrompt({
+      fs: ctx.fs,
+      progressFilePath: ctx.progressFilePath,
+      timedOut: ctx.timedOut.value,
+      continuePrompt: ctx.continuePrompt,
+      timeoutPrompt: ctx.timeoutPrompt,
+    });
+    state.isFinalTurn = ctx.timedOut.value;
+    state.isFirstRun = false;
+  }
+
+  if (ctx.stopAfterIteration.value) {
+    writeStopBanner(ctx.logger, ctx.startTime);
+  }
+
+  return state.lastExitCode;
+}
+
+type IterationResult =
+  | { action: "return"; code: number }
+  | { action: "continue" }
+  | { action: "break" }
+  | { action: "next" };
+
+async function runSingleIteration(ctx: LoopContext, state: LoopState): Promise<IterationResult> {
+  const options = buildRunOptions({
+    agentConfig: ctx.agentConfig, loopConfig: ctx.loopConfig,
+    passthrough: ctx.passthrough, progressFilePath: ctx.progressFilePath,
+    isFirstIteration: state.isFirstRun,
+  });
+  const handle = ctx.agent.run(state.currentPrompt, options);
+  ctx.interrupted.value = false;
+  ctx.timedOut.value = false;
+
+  const verboseLogger = ctx.verbose ? ctx.logger : undefined;
+  const cleanupSignals = setupSignalForwarding({
+    child: handle.child, interrupted: ctx.interrupted,
+    stopAfterIteration: ctx.stopAfterIteration, logger: ctx.logger,
+  });
+  const cleanupTimeout = setupTimeoutWarnings({
+    timedOut: ctx.timedOut, timeoutMs: ctx.timeoutMs,
+    child: handle.child, logger: ctx.logger, verboseLogger,
+  });
+  const cleanupTicker = setupMinuteTicker(ctx.logger, ctx.startTime);
+
+  try {
+    return await processIterationResult(ctx, state, handle);
+  } finally {
+    cleanupSignals();
+    cleanupTimeout();
+    cleanupTicker();
+  }
+}
+
+async function processIterationResult(
+  ctx: LoopContext,
+  state: LoopState,
+  handle: ReturnType<Agent["run"]>,
+): Promise<IterationResult> {
+  const result = await handle.result;
+
+  if (ctx.interrupted.value) {
+    writeInterruptBanner(ctx.logger, ctx.startTime);
+    return { action: "return", code: 130 };
+  }
+
+  if (ctx.stopAfterIteration.value && !state.isFinalTurn) {
+    state.isFinalTurn = true;
+    state.isFirstRun = false;
+    state.currentPrompt = await buildStopPrompt({ fs: ctx.fs, progressFilePath: ctx.progressFilePath });
+    return { action: "continue" };
+  }
+
+  if (ctx.stopAfterIteration.value && state.isFinalTurn) {
+    return { action: "break" };
+  }
+
+  if (isInterruptExitCode(result.exitCode) && !ctx.timedOut.value) {
+    writeInterruptBanner(ctx.logger, ctx.startTime);
+    return { action: "return", code: 130 };
+  }
+
+  if (handle.exitRequested.value) {
+    ctx.logger.error("Agent requested exit. Cannot continue without required tools.");
+    return { action: "return", code: 1 };
+  }
+
+  return handleExitCode(ctx, state, result.exitCode, result.stderr, handle);
+}
+
+function handleExitCode(
+  ctx: LoopContext,
+  state: LoopState,
+  exitCode: number,
+  stderr: string,
+  handle: ReturnType<Agent["run"]>,
+): IterationResult {
+  const killedByTimeout = ctx.timedOut.value && isInterruptExitCode(exitCode);
+  state.lastExitCode = (handle.iterationComplete.value || killedByTimeout) ? 0 : exitCode;
+
+  if (state.lastExitCode !== 0) {
+    logAgentError(ctx.logger, exitCode, stderr);
+
+    if (state.isFirstRun) {
+      return { action: "return", code: exitCode };
+    }
+
+    state.consecutiveFailures++;
+
+    if (state.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+      ctx.logger.error(`Agent failed ${MAX_CONSECUTIVE_FAILURES} times in a row. Stopping.`);
+      return { action: "return", code: exitCode };
+    }
+  } else {
+    state.consecutiveFailures = 0;
+  }
+
+  return { action: "next" };
+}
+
+function logIterationStart(ctx: LoopContext, state: LoopState): void {
+  if (state.isFinalTurn && ctx.stopAfterIteration.value) {
+    ctx.logger.info(`Wrapping up ${ctx.agent.name} agent (stop requested)...`);
+  } else if (state.isFinalTurn) {
+    ctx.logger.info(`Wrapping up ${ctx.agent.name} agent (time limit reached)...`);
+  } else if (state.isFirstRun) {
+    ctx.logger.info(`Running ${ctx.agent.name} agent...`);
+  } else {
+    writeLoopTransition({ agent: ctx.agent, iterationCount: state.iterationCount, startTime: ctx.startTime, logger: ctx.logger });
+  }
+
+  if (state.isFinalTurn) {
+    writeUserPrompt(state.currentPrompt, ctx.logger);
   }
 }
 
@@ -538,4 +623,3 @@ const UNIX_SIGINT_EXIT = 130;
 function isInterruptExitCode(exitCode: number): boolean {
   return exitCode === UNIX_SIGINT_EXIT || exitCode === WINDOWS_CTRL_C_EXIT;
 }
-
