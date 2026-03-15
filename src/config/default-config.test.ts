@@ -1,0 +1,99 @@
+import { createDefaultConfig, mergeWithDefaults, listBuiltInCommandNames } from "./default-config";
+
+describe("createDefaultConfig", () => {
+  it("returns config with claude as default agent", () => {
+    const config = createDefaultConfig();
+
+    expect(config.default_agent).toBe("claude");
+  });
+
+  it("returns config with 15 minute loop time", () => {
+    const config = createDefaultConfig();
+
+    expect(config.loop.max_turn_time_minutes).toBe(15);
+  });
+
+  it("includes claude agent entry", () => {
+    const config = createDefaultConfig();
+
+    expect(config.agents.claude).toEqual({ type: "claude" });
+  });
+
+  it("includes build command with specs_dir default", () => {
+    const config = createDefaultConfig();
+
+    expect(config.commands?.build).toBeDefined();
+    expect(config.commands?.build.prompt).toContain("prompts/build.md");
+    expect(config.commands?.build.variables?.specs_dir).toBe("specs");
+    expect(config.commands?.build.variables?.max_consecutive_failures).toBe(5);
+  });
+
+  it("includes hunt-bugs command with max_loops_without_bugs default", () => {
+    const config = createDefaultConfig();
+
+    expect(config.commands?.["hunt-bugs"]).toBeDefined();
+    expect(config.commands?.["hunt-bugs"].prompt).toContain("prompts/hunt-bugs.md");
+    expect(config.commands?.["hunt-bugs"].variables?.max_loops_without_bugs).toBe(3);
+  });
+});
+
+describe("listBuiltInCommandNames", () => {
+  it("returns all default command names", () => {
+    const names = listBuiltInCommandNames();
+
+    expect(names).toContain("quality");
+    expect(names).toContain("build");
+    expect(names).toContain("hunt-bugs");
+    expect(names).toContain("generate-spec");
+  });
+
+  it("returns an array of strings", () => {
+    const names = listBuiltInCommandNames();
+
+    expect(Array.isArray(names)).toBe(true);
+    names.forEach((name) => expect(typeof name).toBe("string"));
+  });
+});
+
+describe("mergeWithDefaults", () => {
+  it("uses defaults for empty partial", () => {
+    const config = mergeWithDefaults({});
+
+    expect(config.default_agent).toBe("claude");
+    expect(config.loop.max_turn_time_minutes).toBe(15);
+    expect(config.agents.claude.type).toBe("claude");
+  });
+
+  it("overrides default_agent from partial", () => {
+    const config = mergeWithDefaults({ default_agent: "codex" });
+
+    expect(config.default_agent).toBe("codex");
+  });
+
+  it("overrides loop config from partial", () => {
+    const config = mergeWithDefaults({
+      loop: { max_turn_time_minutes: 15 },
+    });
+
+    expect(config.loop.max_turn_time_minutes).toBe(15);
+  });
+
+  it("merges agents with defaults", () => {
+    const config = mergeWithDefaults({
+      agents: { codex: { type: "codex" } },
+    });
+
+    expect(config.agents.claude.type).toBe("claude");
+    expect(config.agents.codex.type).toBe("codex");
+  });
+
+  it("overrides default agent config with partial agent config", () => {
+    const config = mergeWithDefaults({
+      agents: {
+        claude: { type: "claude", append_system_prompt: "Be concise" },
+      },
+    });
+
+    expect(config.agents.claude.append_system_prompt).toBe("Be concise");
+  });
+});

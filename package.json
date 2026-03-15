@@ -1,0 +1,42 @@
+{
+  "name": "solito",
+  "version": "0.1.0",
+  "description": "CLI wrapper for running AI agents like Claude, Codex, and more",
+  "main": "dist/cli.js",
+  "bin": {
+    "solito": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/cli.ts 'Review this project'",
+    "start": "node dist/cli.js",
+    "lint": "eslint src/",
+    "test": "jest"
+  },
+  "keywords": [
+    "cli",
+    "ai",
+    "agent",
+    "claude",
+    "codex"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/jest": "^29.5.0",
+    "@types/marked-terminal": "^6.1.1",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.0.3",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.57.0"
+  },
+  "dependencies": {
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0",
+    "yaml": "^2.8.2",
+    "zod": "^4.3.6"
+  }
+}
