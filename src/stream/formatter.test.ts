@@ -462,6 +462,196 @@ describe("ConsoleStreamFormatter", () => {
     expect(output.write).not.toHaveBeenCalled();
   });
 
+  it("shows system message when verbose", () => {
+    const output = createMockOutput();
+    const formatter = new ConsoleStreamFormatter({ output, verbose: true });
+
+    formatter.format({
+      type: "system",
+      subtype: "init",
+      message: "Starting up",
+    });
+
+    const text = output.getOutput();
+    expect(text).toContain("[system:init]");
+    expect(text).toContain("Starting up");
+  });
+
+  it("hides system message when not verbose", () => {
+    const output = createMockOutput();
+    const formatter = new ConsoleStreamFormatter({ output, verbose: false });
+
+    formatter.format({
+      type: "system",
+      subtype: "init",
+      message: "Starting up",
+    });
+
+    expect(output.write).not.toHaveBeenCalled();
+  });
+
+  it("handles system message without message field", () => {
+    const output = createMockOutput();
+    const formatter = new ConsoleStreamFormatter({ output, verbose: true });
+
+    formatter.format({
+      type: "system",
+      subtype: "init",
+    });
+
+    const text = output.getOutput();
+    expect(text).toContain("[system:init]");
+  });
+
+  it("handles message_start without model in verbose mode", () => {
+    const output = createMockOutput();
+    const formatter = new ConsoleStreamFormatter({ output, verbose: true });
+
+    formatter.format({
+      type: "stream_event",
+      event: {
+        type: "message_start",
+        message: { id: "msg_456", role: "assistant" },
+      },
+    });
+
+    const text = output.getOutput();
+    expect(text).toContain("msg_456");
+    expect(text).not.toContain("model=");
+  });
+
+  it("shows tool_use verbose info when verbose", () => {
+    const output = createMockOutput();
+    const formatter = new ConsoleStreamFormatter({ output, verbose: true });
+
+    formatter.format({
+      type: "stream_event",
+      event: {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "tool_use", id: "tool_99", name: "Read", input: {} },
+      },
+    });
+
+    const text = output.getOutput();
+    expect(text).toContain("[tool_use]");
+    expect(text).toContain("id=tool_99");
+    expect(text).toContain("name=Read");
+  });
+
+  it("does not render markdown when text buffer is empty", () => {
+    const output = createMockOutput();
+    const mockRenderer = { render: jest.fn((md: string) => md) };
+    const formatter = new ConsoleStreamFormatter({
+      output,
+      markdownRenderer: mockRenderer,
+    });
+
+    formatter.format({
+      type: "stream_event",
+      event: {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "text", text: "" },
+      },
+    });
+    output.write.mockClear();
+
+    // Stop without any text deltas
+    formatter.format({
+      type: "stream_event",
+      event: { type: "content_block_stop", index: 0 },
+    });
+
+    expect(mockRenderer.render).not.toHaveBeenCalled();
+  });
+
+  it("handles known tool with empty json buffer on block stop", () => {
+    const output = createMockOutput();
+    const formatter = new ConsoleStreamFormatter({ output });
+
+    formatter.format({
+      type: "stream_event",
+      event: {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "tool_use", id: "t1", name: "Agent", input: {} },
+      },
+    });
+    output.write.mockClear();
+
+    // Stop without any json deltas
+    formatter.format({
+      type: "stream_event",
+      event: { type: "content_block_stop", index: 0 },
+    });
+
+    // Should just write newline + separator, no tool display
+    expect(output.getOutput()).toContain("\n");
+  });
+
+  it("falls back to raw json when formatToolInput returns null", () => {
+    const output = createMockOutput();
+    const formatter = new ConsoleStreamFormatter({ output });
+
+    formatter.format({
+      type: "stream_event",
+      event: {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "tool_use", id: "t1", name: "Agent", input: {} },
+      },
+    });
+
+    // Send invalid JSON that formatToolInput can't parse
+    formatter.format({
+      type: "stream_event",
+      event: {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "input_json_delta", partial_json: "not valid json" },
+      },
+    });
+
+    output.write.mockClear();
+
+    formatter.format({
+      type: "stream_event",
+      event: { type: "content_block_stop", index: 0 },
+    });
+
+    const text = output.getOutput();
+    expect(text).toContain("Agent");
+    expect(text).toContain("not valid json");
+  });
+
+  it("shows error result with 'unknown' when result is undefined", () => {
+    const output = createMockOutput();
+    const formatter = new ConsoleStreamFormatter({ output });
+
+    formatter.format({
+      type: "result",
+      subtype: "error",
+      is_error: true,
+    });
+
+    expect(output.getOutput()).toContain("unknown");
+  });
+
+  it("skips cost display when cost_usd is undefined", () => {
+    const output = createMockOutput();
+    const formatter = new ConsoleStreamFormatter({ output });
+
+    formatter.format({
+      type: "result",
+      subtype: "success",
+    });
+
+    const text = output.getOutput();
+    expect(text).toContain(SEPARATOR);
+    expect(text).not.toContain("USD");
+  });
+
   describe("verbose mode", () => {
     it("shows message_start metadata when verbose", () => {
       const output = createMockOutput();
@@ -517,6 +707,97 @@ describe("ConsoleStreamFormatter", () => {
       const text = output.getOutput();
       expect(text).toContain("sess_abc");
       expect(text).toContain("1200ms");
+    });
+
+    it("shows duration_api_ms in result metadata when verbose", () => {
+      const output = createMockOutput();
+      const formatter = new ConsoleStreamFormatter({ output, verbose: true });
+
+      formatter.format({
+        type: "result",
+        subtype: "success",
+        cost_usd: 0.05,
+        duration_api_ms: 800,
+      });
+
+      expect(output.getOutput()).toContain("api=800ms");
+    });
+
+    it("shows total_cost_usd in result metadata when verbose", () => {
+      const output = createMockOutput();
+      const formatter = new ConsoleStreamFormatter({ output, verbose: true });
+
+      formatter.format({
+        type: "result",
+        subtype: "success",
+        cost_usd: 0.05,
+        total_cost_usd: 1.2345,
+      });
+
+      expect(output.getOutput()).toContain("total=$1.2345");
+    });
+
+    it("does not write result metadata line when no metadata fields", () => {
+      const output = createMockOutput();
+      const formatter = new ConsoleStreamFormatter({ output, verbose: true });
+
+      formatter.format({
+        type: "result",
+        subtype: "success",
+        cost_usd: 0.05,
+      });
+
+      expect(output.getOutput()).not.toContain("[result]");
+    });
+
+    it("shows message_delta with usage tokens when verbose", () => {
+      const output = createMockOutput();
+      const formatter = new ConsoleStreamFormatter({ output, verbose: true });
+
+      formatter.format({
+        type: "stream_event",
+        event: {
+          type: "message_delta",
+          delta: { stop_reason: "end_turn" },
+          usage: { output_tokens: 150 },
+        },
+      });
+
+      const text = output.getOutput();
+      expect(text).toContain("stop_reason=end_turn");
+      expect(text).toContain("tokens=150");
+    });
+
+    it("shows message_delta without usage when verbose", () => {
+      const output = createMockOutput();
+      const formatter = new ConsoleStreamFormatter({ output, verbose: true });
+
+      formatter.format({
+        type: "stream_event",
+        event: {
+          type: "message_delta",
+          delta: { stop_reason: "max_tokens" },
+        },
+      });
+
+      const text = output.getOutput();
+      expect(text).toContain("stop_reason=max_tokens");
+      expect(text).not.toContain("tokens=");
+    });
+
+    it("hides message_delta when not verbose", () => {
+      const output = createMockOutput();
+      const formatter = new ConsoleStreamFormatter({ output, verbose: false });
+
+      formatter.format({
+        type: "stream_event",
+        event: {
+          type: "message_delta",
+          delta: { stop_reason: "end_turn" },
+        },
+      });
+
+      expect(output.write).not.toHaveBeenCalled();
     });
   });
 });
