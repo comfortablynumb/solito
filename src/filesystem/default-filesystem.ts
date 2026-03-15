@@ -30,4 +30,17 @@ export class DefaultFileSystem implements FileSystem {
   async mkdirRecursive(path: string): Promise<void> {
     await fs.mkdir(path, { recursive: true });
   }
+
+  async listDirectories(dirPath: string): Promise<string[]> {
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    } catch (err) {
+      if (isEnoentError(err)) {
+        return [];
+      }
+
+      throw err;
+    }
+  }
 }

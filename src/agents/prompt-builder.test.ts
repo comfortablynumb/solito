@@ -83,9 +83,9 @@ describe("buildSystemPrompt", () => {
     });
 
     expect(prompt).toContain("summary");
-    expect(prompt).toContain("Code coverage");
-    expect(prompt).toContain("Cyclomatic complexity");
-    expect(prompt).toContain("Linter warnings");
+    expect(prompt).toContain("coverage_pct");
+    expect(prompt).toContain("complexity_avg");
+    expect(prompt).toContain("linter_issues");
     expect(prompt).toContain("PRIMARY quality signals");
     expect(prompt).toContain("Next iteration tasks, ordered by priority");
     expect(prompt).toContain("URGENT");
@@ -203,6 +203,27 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("TEMPORARY FILES");
     expect(prompt).toContain("/project/.solito/commands/quality");
     expect(prompt).toContain("NEVER create temporary files in the project root");
+  });
+
+  it("includes metrics log instructions when workDir is provided", () => {
+    const prompt = buildSystemPrompt({
+      userPrompt: "do stuff",
+      loopMaxMinutes: 5,
+      workDir: "/project/.solito/commands/quality",
+    });
+
+    expect(prompt).toContain("METRICS LOG UPDATE");
+    expect(prompt).toContain("/project/.solito/commands/quality/log.tsv");
+    expect(prompt).toContain("dashboard");
+  });
+
+  it("excludes metrics log instructions when workDir is not provided", () => {
+    const prompt = buildSystemPrompt({
+      userPrompt: "do stuff",
+      loopMaxMinutes: 5,
+    });
+
+    expect(prompt).not.toContain("METRICS LOG UPDATE");
   });
 
   it("excludes work dir instructions when workDir is not provided", () => {

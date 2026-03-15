@@ -26,5 +26,22 @@ export function createMockFileSystem(files: Record<string, string> = {}): FileSy
     }),
     exists: jest.fn(async (p: string) => normalizePath(p) in store),
     mkdirRecursive: jest.fn(async () => {}),
+    listDirectories: jest.fn(async (dirPath: string) => {
+      const prefix = normalizePath(dirPath).replace(/\/$/, "") + "/";
+      const dirs = new Set<string>();
+
+      for (const key of Object.keys(store)) {
+        if (key.startsWith(prefix)) {
+          const rest = key.slice(prefix.length);
+          const firstSegment = rest.split("/")[0];
+
+          if (firstSegment) {
+            dirs.add(firstSegment);
+          }
+        }
+      }
+
+      return Array.from(dirs);
+    }),
   };
 }

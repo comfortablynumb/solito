@@ -24,6 +24,7 @@ export function buildSystemPrompt(params: PromptBuilderParams): string {
   }
 
   parts.push(buildProgressFileSection(progressFilePath));
+  parts.push(buildMetricsLogSection(workDir));
   parts.push(buildLoopSummarySection());
   parts.push(buildTaskSection(userPrompt));
 
@@ -105,7 +106,7 @@ function buildToolCheckSection(): string {
     "",
     "1. Code coverage tool:",
     "   - Rust: `cargo llvm-cov --version` or `cargo tarpaulin --version` (install: `cargo install cargo-llvm-cov`)",
-    "   - TypeScript: `npx c8 --version` (install: `npm install --save-dev c8`)",
+    "   - TypeScript: `npx jest --coverage --help` (built-in to Jest, no extra install needed)",
     "   - Go: built-in (`go test -cover`)",
     "   - Java: JaCoCo plugin in pom.xml/build.gradle (verify: `mvn jacoco:report` or `./gradlew jacocoTestReport`)",
     "",
@@ -160,14 +161,33 @@ function buildProgressFileSection(progressFilePath?: string): string {
   ].join("\n");
 }
 
+function buildMetricsLogSection(workDir?: string): string {
+  if (!workDir) {
+    return "";
+  }
+
+  return [
+    "MANDATORY — METRICS LOG UPDATE:",
+    `Before ending each iteration, you MUST append a row to ${workDir}/log.tsv`,
+    "with the current loop's metrics. This file is read by the dashboard in real time.",
+    "If the file does not exist yet, create it with this exact TSV header first:",
+    "loop\tstatus\ttest_count\tcoverage_pct\tfailed_tests\tcomplexity_avg\tcomplexity_p75\tcomplexity_p90\tcomplexity_p99\tlinter_issues\tdescription",
+    "",
+    "Each row MUST use exactly these columns in this order. Every numeric field must be a number (use 0 if unknown).",
+    "Do NOT add, rename, or reorder columns. Do NOT skip this step — the dashboard cannot show progress without it.",
+  ].join("\n");
+}
+
 function buildLoopSummarySection(): string {
   return [
     "Before finishing each loop iteration, you MUST print a concise summary including:",
-    "- Key metrics delta (ALWAYS include these when available):",
-    "  - Code coverage: X% -> Y% (delta)",
-    "  - Cyclomatic complexity: avg X -> Y, max X -> Y",
-    "  - Test results: X passing, Y failing",
-    "  - Linter warnings: X -> Y",
+    "- Key metrics delta (ALWAYS include these, using the exact canonical names):",
+    "  - test_count: X -> Y (delta)",
+    "  - coverage_pct: X -> Y (delta)",
+    "  - failed_tests: X -> Y (delta)",
+    "  - complexity_avg: X -> Y (delta)",
+    "  - complexity_p75 / p90 / p99: X -> Y (delta)",
+    "  - linter_issues: X -> Y (delta)",
     "- Current loop: what was done, what changed, time spent",
     "- Current loop wins: specific accomplishments (coverage gained, complexity reduced, bugs fixed)",
     "- Overall progress: cumulative metric deltas since first iteration",

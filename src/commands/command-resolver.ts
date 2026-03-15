@@ -6,6 +6,7 @@ export interface CommandResolveResult {
   prompt: string;
   isCommand: boolean;
   commandName?: string;
+  inlinePrompt?: string;
 }
 
 export interface CommandResolver {
@@ -30,24 +31,44 @@ export class DefaultCommandResolver implements CommandResolver {
   }
 
   async resolve(input: string): Promise<CommandResolveResult> {
-    const commandConfig = this.commands[input];
+    const exactConfig = this.commands[input];
 
-    if (!commandConfig) {
-      return { prompt: input, isCommand: false };
+    if (exactConfig) {
+      return this.resolveCommand(input, exactConfig);
     }
 
+    const spaceIndex = input.indexOf(" ");
+
+    if (spaceIndex !== -1) {
+      const firstWord = input.substring(0, spaceIndex);
+      const rest = input.substring(spaceIndex + 1).trim();
+      const config = this.commands[firstWord];
+
+      if (config && rest) {
+        const result = await this.resolveCommand(firstWord, config);
+        return { ...result, inlinePrompt: rest };
+      }
+    }
+
+    return { prompt: input, isCommand: false };
+  }
+
+  private async resolveCommand(
+    name: string,
+    config: CommandConfig,
+  ): Promise<CommandResolveResult> {
     const resolvedPath = this.variableResolver.resolve(
-      commandConfig.prompt,
-      commandConfig.variables,
+      config.prompt,
+      config.variables,
     );
 
     const content = await this.filesystem.readFile(resolvedPath);
 
     const resolvedContent = this.variableResolver.resolve(
       content,
-      commandConfig.variables,
+      config.variables,
     );
 
-    return { prompt: resolvedContent, isCommand: true, commandName: input };
+    return { prompt: resolvedContent, isCommand: true, commandName: name };
   }
 }

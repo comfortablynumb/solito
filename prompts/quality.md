@@ -104,11 +104,24 @@ Run the full metrics collection described in Section 7 and write the results to
 
 ### 3.5 Initialize the experiment log
 
-Create `${var:command_work_dir}/log.tsv` with this header:
+Create `${var:command_work_dir}/log.tsv` with **exactly** this header (tab-separated):
 
 ```
-loop	timestamp	status	category	metric_improved	coverage	complexity	warnings	broken_tests	tests_pass	commit_hash	description
+loop	status	test_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
 ```
+
+Column definitions (these names are mandatory and must not be changed):
+- `loop`: loop iteration number (0 for baseline)
+- `status`: `SUCCESS`, `FAIL`, or `TIMEOUT`
+- `test_count`: total number of tests
+- `coverage_pct`: code coverage percentage (e.g. `72.5`)
+- `failed_tests`: number of failing tests
+- `complexity_avg`: average cyclomatic complexity across all functions
+- `complexity_p75`: 75th percentile of cyclomatic complexity (75% of functions are at or below this value)
+- `complexity_p90`: 90th percentile of cyclomatic complexity
+- `complexity_p99`: 99th percentile of cyclomatic complexity (highlights the worst outliers)
+- `linter_issues`: total number of linter warnings + errors
+- `description`: one-line summary of what was done
 
 Record the baseline as loop 0.
 
@@ -282,9 +295,44 @@ using this format:
 
 ### 4.7 Log the result
 
-Append a row to `${var:command_work_dir}/log.tsv` with all fields filled.
+Append a row to `${var:command_work_dir}/log.tsv` with all fields filled. Use **exactly** these
+tab-separated columns in this order:
 
-### 4.8 Anti-stagnation rules
+```
+<loop>	<status>	<test_count>	<coverage_pct>	<failed_tests>	<complexity_avg>	<complexity_p75>	<complexity_p90>	<complexity_p99>	<linter_issues>	<description>
+```
+
+Every numeric field MUST contain a number (use `0` if the metric could not be collected).
+Do NOT add extra columns, rename columns, or reorder them.
+
+### 4.8 Per-loop summary (mandatory)
+
+At the end of **every** loop iteration, print a summary table showing previous and current values
+for the four key metrics:
+
+```
+┌──────────────────────────┬──────────┬──────────┬─────────┐
+│ Metric                   │ Previous │ Current  │ Delta   │
+├──────────────────────────┼──────────┼──────────┼─────────┤
+│ test_count               │ 89       │ 91       │ +2      │
+│ coverage_pct             │ 68.2     │ 69.1     │ +0.9    │
+│ failed_tests             │ 3        │ 2        │ -1      │
+│ complexity_avg           │ 6.8      │ 6.5      │ -0.3    │
+│ complexity_p75           │ 10       │ 9        │ -1      │
+│ complexity_p90           │ 18       │ 16       │ -2      │
+│ complexity_p99           │ 32       │ 28       │ -4      │
+│ linter_issues            │ 14       │ 12       │ -2      │
+└──────────────────────────┴──────────┴──────────┴─────────┘
+Status: COMMITTED | Loop: 5 | Hypothesis: <one-line>
+```
+
+- **Previous** = values from `metrics.json` before this loop's change.
+- **Current** = values measured after this loop's change (even if discarded).
+- Always include all five rows, even if unchanged (show delta as `0`).
+- If the loop was discarded, show `Status: DISCARDED` and the current values still reflect the
+  measurement (they will match previous since changes were rolled back).
+
+### 4.9 Anti-stagnation rules
 
 - If you have **${var:max_loops_without_enhancement} consecutive discards** on the same metric, switch to a different metric target.
 - If you have **5 consecutive discards** overall, take a step back: re-read the codebase structure,
@@ -298,9 +346,9 @@ When hitting the stagnation limit, you MUST completely change your approach:
 - If you were refactoring, switch to adding missing test coverage
 - If you were focused on one module, move to a different module with lower coverage
 
-### 4.9 Time budget
+### 4.10 Time budget
 
-Each loop (steps 4.1 through 4.7) should take no more than **${var:max_turn_time_minutes} minutes** of wall-clock time. If
+Each loop (steps 4.1 through 4.8) should take no more than **${var:max_turn_time_minutes} minutes** of wall-clock time. If
 test execution alone exceeds ${var:max_turn_time_minutes} minutes, that is acceptable — the budget applies to your thinking
 and implementation time, not to waiting on tools.
 
@@ -400,9 +448,9 @@ When active features exist, step 4.1 priority becomes:
 
 ```
 score = (new_passing_acceptance_tests * 10.0)
-      + (coverage_delta * 3.0)
-      + (complexity_reduction * 2.0)
-      + (warning_reduction * 1.0)
+      + (coverage_pct_delta * 3.0)
+      + (complexity_avg_reduction * 2.0)
+      + (linter_issues_reduction * 1.0)
 ```
 
 Passing a new acceptance test dominates all other metrics.
@@ -436,18 +484,25 @@ a unified `${var:command_work_dir}/metrics.json` with this schema:
 ```json
 {
   "timestamp": "2026-03-10T14:30:00Z",
-  "coverage_percent": 72.5,
-  "avg_cyclomatic_complexity": 4.2,
-  "max_cyclomatic_complexity": 18,
-  "warning_count": 7,
-  "broken_test_count": 3,
   "test_count": 142,
-  "test_pass_count": 139,
-  "test_duration_seconds": 12.4,
-  "loc": 4820,
-  "unsafe_usage_count": 3
+  "coverage_pct": 72.5,
+  "failed_tests": 3,
+  "complexity_avg": 4.2,
+  "complexity_p75": 7,
+  "complexity_p90": 12,
+  "complexity_p99": 22,
+  "linter_issues": 7
 }
 ```
+
+These eight metric keys (`test_count`, `coverage_pct`, `failed_tests`, `complexity_avg`,
+`complexity_p75`, `complexity_p90`, `complexity_p99`, `linter_issues`) are the **canonical metric names**.
+Use them consistently in `metrics.json`, `log.tsv`, and all summaries.
+Do NOT use alternative names like `coverage_percent`, `warning_count`, `broken_test_count`, etc.
+
+To compute complexity percentiles: collect the cyclomatic complexity of every function, sort the
+values, then pick the value at the 75th, 90th, and 99th percentile positions. These highlight how
+many complex outlier functions remain in the codebase.
 
 ### 7.1 Code coverage
 
@@ -456,15 +511,14 @@ a unified `${var:command_work_dir}/metrics.json` with this schema:
 | Rust       | `cargo-llvm-cov`    | `cargo llvm-cov --workspace --json 2>/dev/null \| jq '.data[0].totals.lines.percent'` |
 | Rust (alt) | `cargo-tarpaulin`   | `cargo tarpaulin --workspace --out json 2>/dev/null \| jq '.coverage_percent'` |
 | Go         | built-in            | `go test ./... -coverprofile=coverage.out 2>/dev/null && go tool cover -func=coverage.out \| grep total \| awk '{print $3}' \| tr -d '%'` |
-| TypeScript | `c8` / `istanbul`   | `npx c8 --reporter=json-summary npm test 2>/dev/null && jq '.total.lines.pct' coverage/coverage-summary.json` |
-| TypeScript (alt) | `vitest`     | `npx vitest run --coverage --reporter=json 2>/dev/null` |
+| TypeScript | `jest`              | `npx jest --coverage --coverageReporters=json-summary 2>/dev/null && jq '.total.lines.pct' coverage/coverage-summary.json` |
 | Java (Maven) | `jacoco`         | `mvn test jacoco:report -q 2>/dev/null && grep -oP 'Total.*?(\d+%)' target/site/jacoco/index.html` or parse `target/site/jacoco/jacoco.csv` |
 | Java (Gradle) | `jacoco`        | `./gradlew test jacocoTestReport 2>/dev/null` → parse `build/reports/jacoco/test/jacocoTestReport.csv` |
 
 At startup, check which tool is available. If none is installed, attempt to install it:
 - **Rust**: `cargo install cargo-llvm-cov`
 - **Go**: built-in, no install needed.
-- **TypeScript**: `npm install --save-dev c8` or check if vitest is already configured.
+- **TypeScript**: Jest with `--coverage` flag (built-in to Jest, no extra install needed).
 - **Java (Maven)**: add `jacoco-maven-plugin` to `pom.xml` if not present.
 - **Java (Gradle)**: add `jacoco` plugin to `build.gradle` if not present.
 
@@ -540,19 +594,19 @@ find src/ -name '*.java' | xargs wc -l | tail -1 | awk '{print $1}'
 When deciding whether a loop produced an improvement, use this weighted score:
 
 ```
-score = (broken_test_reduction * 5.0)
-      + (coverage_delta * 3.0)
-      + (complexity_reduction * 2.0)
-      + (warning_reduction * 1.0)
-      + (max_complexity_reduction * 1.5)
+score = (failed_tests_reduction * 5.0)
+      + (coverage_pct_delta * 3.0)
+      + (complexity_avg_reduction * 2.0)
+      + (linter_issues_reduction * 1.0)
+      + (test_count_delta * 0.5)
 ```
 
 Where:
-- `broken_test_reduction` = old broken count - new broken count (positive = better)
-- `coverage_delta` = new coverage - old coverage (positive = better)
-- `complexity_reduction` = old avg complexity - new avg complexity (positive = better)
-- `warning_reduction` = old warnings - new warnings (positive = better)
-- `max_complexity_reduction` = old max - new max (positive = better)
+- `failed_tests_reduction` = old failed_tests - new failed_tests (positive = better)
+- `coverage_pct_delta` = new coverage_pct - old coverage_pct (positive = better)
+- `complexity_avg_reduction` = old complexity_avg - new complexity_avg (positive = better)
+- `linter_issues_reduction` = old linter_issues - new linter_issues (positive = better)
+- `test_count_delta` = new test_count - old test_count (positive = better)
 
 A loop is a success if `score > 0` and no hard regression occurred.
 
@@ -596,9 +650,8 @@ go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 ### TypeScript
 
 ```bash
-# Coverage (pick one based on existing test runner)
-npm install --save-dev c8
-# or vitest has built-in coverage
+# Coverage — use Jest with --coverage flag (built-in, no extra install)
+npx jest --coverage
 
 # Complexity (verify eslint config exists with complexity rule)
 npm install --save-dev eslint @eslint/js typescript-eslint
@@ -702,11 +755,14 @@ Every **10 loops** (regardless of success/failure), print a brief summary:
 === Quality Guardian Summary (Loops 1-10) ===
 Successful commits: 7
 Discarded attempts: 3
-Broken tests:  3 → 0 (all repaired)
-Coverage:      68.2% → 73.1% (+4.9%)
-Avg complexity: 6.8 → 5.9 (-0.9)
-Max complexity: 22 → 16 (-6)
-Warnings:      14 → 9 (-5)
+test_count:      89 → 91 (+2)
+coverage_pct:    68.2 → 73.1 (+4.9)
+failed_tests:    3 → 0 (-3)
+complexity_avg:  6.8 → 5.9 (-0.9)
+complexity_p75:  10 → 9 (-1)
+complexity_p90:  18 → 16 (-2)
+complexity_p99:  32 → 28 (-4)
+linter_issues:   14 → 9 (-5)
 ================================================
 ```
 
@@ -728,12 +784,14 @@ in `${var:command_work_dir}/report.md`:
 ## Metrics Delta
 | Metric              | Before | After  | Delta  |
 |---------------------|--------|--------|--------|
-| Broken tests        | 3      | 0      | -3     |
-| Coverage %          | 68.2   | 81.7   | +13.5  |
-| Avg complexity      | 6.8    | 4.3    | -2.5   |
-| Max complexity      | 22     | 11     | -11    |
-| Warnings            | 14     | 0      | -14    |
-| Test count          | 89     | 134    | +45    |
+| test_count          | 89     | 134    | +45    |
+| coverage_pct        | 68.2   | 81.7   | +13.5  |
+| failed_tests        | 3      | 0      | -3     |
+| complexity_avg      | 6.8    | 4.3    | -2.5   |
+| complexity_p75      | 10     | 7      | -3     |
+| complexity_p90      | 18     | 11     | -7     |
+| complexity_p99      | 32     | 18     | -14    |
+| linter_issues       | 14     | 0      | -14    |
 
 ## Notable Changes
 - Repaired 3 broken tests: 2 had stale fixtures, 1 tested removed functionality (deleted)
