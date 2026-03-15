@@ -409,6 +409,87 @@ describe("TsvMetricsWatcher", () => {
     watcher.stop();
   });
 
+  it("handles row with fewer columns than headers", async () => {
+    // Row has only 2 values but 3 headers — values[2] should default to ""
+    const tsv = "loop\tstatus\tcoverage\n1\tSUCCESS";
+    const filesystem = createMockFileSystem({ "/project/log.tsv": tsv });
+    const reporter = createMockReporter();
+    const logger = createMockLogger();
+
+    const watcher = new TsvMetricsWatcher({
+      tsvPath: "/project/log.tsv",
+      instanceId: "test",
+      command: "quality",
+      project: "/project",
+      reporter,
+      filesystem,
+      logger,
+      pollIntervalMs: 1000,
+    });
+
+    watcher.start();
+    await flushPromises();
+
+    expect(reporter.reported).toHaveLength(1);
+    expect(reporter.reported[0].loop).toBe(1);
+    expect(reporter.reported[0].metrics.coverage).toBeUndefined();
+
+    watcher.stop();
+  });
+
+  it("defaults loop to 0 when loop column is non-numeric", async () => {
+    const tsv = "loop\tstatus\tcoverage\nabc\tSUCCESS\t80";
+    const filesystem = createMockFileSystem({ "/project/log.tsv": tsv });
+    const reporter = createMockReporter();
+    const logger = createMockLogger();
+
+    const watcher = new TsvMetricsWatcher({
+      tsvPath: "/project/log.tsv",
+      instanceId: "test",
+      command: "quality",
+      project: "/project",
+      reporter,
+      filesystem,
+      logger,
+      pollIntervalMs: 1000,
+    });
+
+    watcher.start();
+    await flushPromises();
+
+    expect(reporter.reported).toHaveLength(1);
+    expect(reporter.reported[0].loop).toBe(0);
+    expect(reporter.reported[0].metrics.coverage).toBe(80);
+
+    watcher.stop();
+  });
+
+  it("defaults loop to 0 when loop column is missing", async () => {
+    const tsv = "status\tcoverage\nSUCCESS\t80";
+    const filesystem = createMockFileSystem({ "/project/log.tsv": tsv });
+    const reporter = createMockReporter();
+    const logger = createMockLogger();
+
+    const watcher = new TsvMetricsWatcher({
+      tsvPath: "/project/log.tsv",
+      instanceId: "test",
+      command: "quality",
+      project: "/project",
+      reporter,
+      filesystem,
+      logger,
+      pollIntervalMs: 1000,
+    });
+
+    watcher.start();
+    await flushPromises();
+
+    expect(reporter.reported).toHaveLength(1);
+    expect(reporter.reported[0].loop).toBe(0);
+
+    watcher.stop();
+  });
+
   it("stops cleanly", () => {
     const filesystem = createMockFileSystem();
     const reporter = createMockReporter();

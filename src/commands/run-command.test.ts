@@ -797,6 +797,55 @@ describe("executeRunCommand", () => {
       expect(secondCallPrompt).toContain("Still need to add tests");
     });
 
+    it("does not write to stdin when it is destroyed", async () => {
+      jest.useFakeTimers();
+      const child = createMockChild();
+      // Mark stdin as destroyed
+      (child.stdin as unknown as { destroyed: boolean }).destroyed = true;
+      const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+      let resolveFirstTurn!: (r: AgentResult) => void;
+      const fs = createMockFileSystem();
+
+      const agent: Agent = {
+        name: "mock-agent",
+        run: jest.fn()
+          .mockReturnValueOnce({
+            child,
+            result: new Promise<AgentResult>((resolve) => {
+              resolveFirstTurn = resolve;
+            }),
+            iterationComplete: { value: false },
+            exitRequested: { value: false },
+          })
+          .mockReturnValue({
+            child,
+            result: Promise.resolve(ok),
+            iterationComplete: { value: false },
+            exitRequested: { value: false },
+          }),
+        isAvailable: jest.fn().mockResolvedValue(true),
+      };
+
+      const promise = executeRunCommand({
+        agent,
+        prompt: "do stuff",
+        loopConfig: { max_turn_time_minutes: 10 },
+        fs,
+        maxIterations: 2,
+      });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Advance past soft warning time — stdin.write should NOT be called since stdin is destroyed
+      jest.advanceTimersByTime(10 * 60 * 1000);
+      resolveFirstTurn(ok);
+      await promise;
+      jest.useRealTimers();
+
+      expect(child.stdin!.write).not.toHaveBeenCalled();
+    });
+
     it("cleans up progress file after loop ends", async () => {
       const ok: AgentResult = { exitCode: 0, stdout: "", stderr: "" };
       const agent = createMockAgent(ok);

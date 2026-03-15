@@ -330,3 +330,19 @@ describe("listBuiltInSubcommands", () => {
     expect(result).toContain("ui");
   });
 });
+
+describe("flag missing value", () => {
+  it("exits with error when --agent has no value", () => {
+    const exitSpy = jest.spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("process.exit");
+    });
+    const errorSpy = jest.spyOn(console, "error").mockImplementation();
+
+    expect(() => parseArgs(["node", "solito", "--agent"])).toThrow("process.exit");
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("--agent requires a value"));
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+});
