@@ -211,6 +211,48 @@ describe("UiHandlers", () => {
 
       expect(res._status).toBe(400);
     });
+
+    it("returns 400 when request body errors", async () => {
+      const { handlers } = buildHandlers();
+      const emitter = new EventEmitter();
+      const req = emitter as IncomingMessage;
+      const res = createMockRes();
+
+      handlers.postMetrics(req, res);
+      process.nextTick(() => emitter.emit("error", new Error("read fail")));
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(400);
+    });
+
+    it("handles report without instanceId", async () => {
+      const { handlers, store } = buildHandlers();
+      const report = createReport({ instanceId: undefined as unknown as string });
+      const req = createMockReq(JSON.stringify(report));
+      const res = createMockRes();
+
+      handlers.postMetrics(req, res);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(201);
+      expect(store.getAll()).toHaveLength(1);
+    });
+
+    it("handles report without description or status", async () => {
+      const { handlers, logger } = buildHandlers();
+      const report = createReport({ description: undefined, status: undefined as unknown as string });
+      const req = createMockReq(JSON.stringify(report));
+      const res = createMockRes();
+
+      handlers.postMetrics(req, res);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(201);
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("loop=1"));
+    });
   });
 
   describe("getTsv", () => {
@@ -241,6 +283,50 @@ describe("UiHandlers", () => {
       await new Promise((r) => setTimeout(r, 10));
 
       expect(res._status).toBe(404);
+    });
+
+    it("returns 500 when TSV read fails", async () => {
+      const store = new InMemoryMetricsStore();
+      const fs = createMockFileSystem({ "/project/.solito/commands/quality/log.tsv": "data" });
+      (fs.readFile as jest.Mock).mockRejectedValueOnce(new Error("read error"));
+      const handlers = createUiHandlers({
+        store,
+        tsvParser: new DefaultTsvParser(),
+        tsvRowTransformer: new DefaultTsvRowTransformer(),
+        filesystem: fs,
+        logger: createMockLogger(),
+        cwd: "/project",
+      });
+      const res = createMockRes();
+
+      handlers.getTsv(createMockReq(), res, "quality");
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(500);
+      expect(JSON.parse(res._body)).toEqual({ error: "Failed to read TSV file" });
+    });
+
+    it("returns 500 when exists check fails", async () => {
+      const store = new InMemoryMetricsStore();
+      const fs = createMockFileSystem();
+      (fs.exists as jest.Mock).mockRejectedValueOnce(new Error("fs error"));
+      const handlers = createUiHandlers({
+        store,
+        tsvParser: new DefaultTsvParser(),
+        tsvRowTransformer: new DefaultTsvRowTransformer(),
+        filesystem: fs,
+        logger: createMockLogger(),
+        cwd: "/project",
+      });
+      const res = createMockRes();
+
+      handlers.getTsv(createMockReq(), res, "quality");
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(500);
+      expect(JSON.parse(res._body)).toEqual({ error: "Failed to check TSV file" });
     });
   });
 
@@ -293,6 +379,28 @@ describe("UiHandlers", () => {
 
       expect(res._status).toBe(200);
       expect(JSON.parse(res._body)).toEqual([]);
+    });
+
+    it("returns 500 when listDirectories fails", async () => {
+      const store = new InMemoryMetricsStore();
+      const fs = createMockFileSystem();
+      (fs.listDirectories as jest.Mock).mockRejectedValueOnce(new Error("list error"));
+      const handlers = createUiHandlers({
+        store,
+        tsvParser: new DefaultTsvParser(),
+        tsvRowTransformer: new DefaultTsvRowTransformer(),
+        filesystem: fs,
+        logger: createMockLogger(),
+        cwd: "/project",
+      });
+      const res = createMockRes();
+
+      handlers.getAvailableCommands(createMockReq(), res);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(500);
+      expect(JSON.parse(res._body)).toEqual({ error: "Failed to list commands" });
     });
   });
 });

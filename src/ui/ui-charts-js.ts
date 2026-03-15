@@ -1,7 +1,27 @@
 export function buildChartsScript(): string {
   return `
 (function() {
-  var chartInstances = {};
+${buildStateSection()}
+${buildChartHelpers()}
+${buildUtilityFunctions()}
+${buildNavigationFunctions()}
+${buildCardBuilders()}
+${buildLayoutFunctions()}
+${buildStatusBadgeAndSummary()}
+${buildHistoryAndDelta()}
+${buildMetricsUpdateHeader()}
+${buildMetricsUpdateBody()}
+${buildInstanceManagement()}
+${buildDashboardRefresh()}
+${buildModalFunctions()}
+${buildTsvRefresh()}
+${buildInitSection()}
+})();
+`;
+}
+
+function buildStateSection(): string {
+  return `  var chartInstances = {};
   var knownInstances = {};
   var instanceRegistry = {};
   var selectedInstanceId = null;
@@ -9,9 +29,11 @@ export function buildChartsScript(): string {
   var CARD_BGS = [
     'bg-green-900/50', 'bg-amber-900/50', 'bg-blue-900/50', 'bg-red-900/50',
     'bg-purple-900/50', 'bg-cyan-900/50', 'bg-pink-900/50', 'bg-lime-900/50'
-  ];
+  ];`;
+}
 
-  function createChart(canvasId, label, color) {
+function buildChartHelpers(): string {
+  return `  function createChart(canvasId, label, color) {
     var ctx = document.getElementById(canvasId);
     if (!ctx) return null;
 
@@ -57,9 +79,11 @@ export function buildChartsScript(): string {
     var labels = metrics.map(function(m) { return 'Loop ' + m.loop; });
     var data = metrics.map(function(m) { return (m.metrics || {})[metricKey] || 0; });
     return { labels: labels, data: data };
-  }
+  }`;
+}
 
-  function shortId(id) {
+function buildUtilityFunctions(): string {
+  return `  function shortId(id) {
     return id.substring(0, 8);
   }
 
@@ -85,9 +109,11 @@ export function buildChartsScript(): string {
     });
 
     return Object.keys(keys);
-  }
+  }`;
+}
 
-  function selectInstance(instanceId) {
+function buildNavigationFunctions(): string {
+  return `  function selectInstance(instanceId) {
     selectedInstanceId = instanceId;
     updateNavButtons();
     updateVisibility();
@@ -137,9 +163,11 @@ export function buildChartsScript(): string {
         el.style.display = 'none';
       }
     });
-  }
+  }`;
+}
 
-  function buildInstanceCard(sid) {
+function buildCardBuilders(): string {
+  return `  function buildInstanceCard(sid) {
     return '<div class="bg-slate-800 rounded-lg p-4 border border-slate-600 mb-6" id="inst-' + sid + '">' +
       '<div class="flex items-center justify-between mb-4">' +
         '<div>' +
@@ -184,9 +212,11 @@ export function buildChartsScript(): string {
       '<div class="text-sm text-slate-400 mb-2">' + title + '</div>' +
       '<div style="height:180px;"><canvas id="' + canvasId + '"></canvas></div>' +
     '</div>';
-  }
+  }`;
+}
 
-  function ensureInstanceLayout(sid, inst, metricKeys) {
+function buildLayoutFunctions(): string {
+  return `  function ensureInstanceLayout(sid, inst, metricKeys) {
     if (!knownInstances[sid]) {
       knownInstances[sid] = { metricKeys: [] };
     }
@@ -246,9 +276,11 @@ export function buildChartsScript(): string {
         createChart(chartId, label, color);
       }
     });
-  }
+  }`;
+}
 
-  function statusBadge(status) {
+function buildStatusBadgeAndSummary(): string {
+  return `  function statusBadge(status) {
     var colors = {
       'SUCCESS': 'bg-green-900/60 text-green-300',
       'FAIL': 'bg-red-900/60 text-red-300',
@@ -271,9 +303,11 @@ export function buildChartsScript(): string {
     });
 
     return parts.join('<span class="text-slate-600 mx-1">|</span>');
-  }
+  }`;
+}
 
-  function buildHistoryRows(metrics) {
+function buildHistoryAndDelta(): string {
+  return `  function buildHistoryRows(metrics) {
     var html = '';
 
     for (var i = metrics.length - 1; i >= 0; i--) {
@@ -322,6 +356,73 @@ export function buildChartsScript(): string {
     if (delta > 0) return positive;
     if (delta < 0) return negative;
     return 'text-slate-500';
+  }`;
+}
+
+function buildMetricsUpdateHeader(): string {
+  return `  function updateMetricKey(sid, key, m, b, p, previous, dataMetrics) {
+    var el = document.getElementById('inst-m-' + sid + '-' + key);
+
+    if (el) {
+      el.textContent = m[key] !== undefined ? String(m[key]) : '-';
+    }
+
+    var deltaEl = document.getElementById('inst-m-' + sid + '-' + key + '-delta');
+
+    if (deltaEl && m[key] !== undefined && b[key] !== undefined) {
+      var delta = m[key] - b[key];
+      var text = formatDelta(delta);
+
+      if (text) {
+        deltaEl.textContent = text + ' since start';
+        deltaEl.className = 'text-xs mt-1 font-medium ' + deltaColor(delta, key);
+      } else {
+        deltaEl.textContent = 'No changes';
+        deltaEl.className = 'text-xs mt-1 font-medium text-yellow-400';
+      }
+    }
+
+    var deltaLastEl = document.getElementById('inst-m-' + sid + '-' + key + '-delta-last');
+
+    if (deltaLastEl && m[key] !== undefined && previous && p[key] !== undefined) {
+      var lastDelta = m[key] - p[key];
+      var lastText = formatDelta(lastDelta);
+
+      if (lastText) {
+        deltaLastEl.textContent = lastText + ' since last loop';
+        deltaLastEl.className = 'text-xs font-medium ' + deltaColor(lastDelta, key);
+      } else {
+        deltaLastEl.textContent = '';
+      }
+    }
+
+    if (dataMetrics.length > 0) {
+      var chartId = 'chart-m-' + sid + '-' + key;
+      var d = extractChartData(dataMetrics, key);
+      updateChart(chartId, d.labels, d.data);
+    }
+  }`;
+}
+
+function buildMetricsUpdateBody(): string {
+  return `  function updateStatusAndHistory(sid, latest, dataMetrics, metrics) {
+    var loopEl = document.getElementById('inst-loop-' + sid);
+
+    if (loopEl) {
+      loopEl.textContent = latest.loop || '-';
+    }
+
+    var statusEl = document.getElementById('inst-status-' + sid);
+
+    if (statusEl) {
+      statusEl.textContent = latest.status || '-';
+    }
+
+    var historyEl = document.getElementById('inst-history-' + sid);
+
+    if (historyEl) {
+      historyEl.innerHTML = buildHistoryRows(dataMetrics.length > 0 ? dataMetrics : metrics);
+    }
   }
 
   function updateInstanceMetrics(sid, metrics) {
@@ -342,68 +443,15 @@ export function buildChartsScript(): string {
     if (!info) return;
 
     info.metricKeys.forEach(function(key) {
-      var el = document.getElementById('inst-m-' + sid + '-' + key);
-
-      if (el) {
-        el.textContent = m[key] !== undefined ? String(m[key]) : '-';
-      }
-
-      var deltaEl = document.getElementById('inst-m-' + sid + '-' + key + '-delta');
-
-      if (deltaEl && m[key] !== undefined && b[key] !== undefined) {
-        var delta = m[key] - b[key];
-        var text = formatDelta(delta);
-
-        if (text) {
-          deltaEl.textContent = text + ' since start';
-          deltaEl.className = 'text-xs mt-1 font-medium ' + deltaColor(delta, key);
-        } else {
-          deltaEl.textContent = 'No changes';
-          deltaEl.className = 'text-xs mt-1 font-medium text-yellow-400';
-        }
-      }
-
-      var deltaLastEl = document.getElementById('inst-m-' + sid + '-' + key + '-delta-last');
-
-      if (deltaLastEl && m[key] !== undefined && previous && p[key] !== undefined) {
-        var lastDelta = m[key] - p[key];
-        var lastText = formatDelta(lastDelta);
-
-        if (lastText) {
-          deltaLastEl.textContent = lastText + ' since last loop';
-          deltaLastEl.className = 'text-xs font-medium ' + deltaColor(lastDelta, key);
-        } else {
-          deltaLastEl.textContent = '';
-        }
-      }
-
-      if (dataMetrics.length > 0) {
-        var chartId = 'chart-m-' + sid + '-' + key;
-        var d = extractChartData(dataMetrics, key);
-        updateChart(chartId, d.labels, d.data);
-      }
+      updateMetricKey(sid, key, m, b, p, previous, dataMetrics);
     });
 
-    var loopEl = document.getElementById('inst-loop-' + sid);
+    updateStatusAndHistory(sid, latest, dataMetrics, metrics);
+  }`;
+}
 
-    if (loopEl) {
-      loopEl.textContent = latest.loop || '-';
-    }
-
-    var statusEl = document.getElementById('inst-status-' + sid);
-
-    if (statusEl) {
-      statusEl.textContent = latest.status || '-';
-    }
-
-    var historyEl = document.getElementById('inst-history-' + sid);
-
-    if (historyEl) {
-      historyEl.innerHTML = buildHistoryRows(dataMetrics.length > 0 ? dataMetrics : metrics);
-    }
-  }
-
-  function instanceKey(inst) {
+function buildInstanceManagement(): string {
+  return `  function instanceKey(inst) {
     return inst.command + '::' + inst.project;
   }
 
@@ -426,9 +474,11 @@ export function buildChartsScript(): string {
         }
       });
     });
-  }
+  }`;
+}
 
-  function refreshDashboard() {
+function buildDashboardRefresh(): string {
+  return `  function refreshDashboard() {
     $.getJSON('/api/instances', function(instances) {
       var container = $('#instances-container');
       var countEl = $('#instance-count');
@@ -472,9 +522,11 @@ export function buildChartsScript(): string {
 
       updateVisibility();
     });
-  }
+  }`;
+}
 
-  function buildModalMetricRow(label, value) {
+function buildModalFunctions(): string {
+  return `  function buildModalMetricRow(label, value) {
     return '<div class="flex justify-between py-2 border-b border-slate-700">' +
       '<span class="text-slate-400">' + label + '</span>' +
       '<span class="text-white font-medium">' + value + '</span>' +
@@ -530,9 +582,11 @@ export function buildChartsScript(): string {
     if (e.key === 'Escape') {
       window.closeLoopModal();
     }
-  });
+  });`;
+}
 
-  function refreshTsvCommands() {
+function buildTsvRefresh(): string {
+  return `  function refreshTsvCommands() {
     $.getJSON('/api/commands', function(commands) {
       if (!commands || commands.length === 0) return;
 
@@ -572,14 +626,14 @@ export function buildChartsScript(): string {
         });
       });
     });
-  }
+  }`;
+}
 
-  $(document).ready(function() {
+function buildInitSection(): string {
+  return `  $(document).ready(function() {
     refreshDashboard();
     refreshTsvCommands();
     setInterval(refreshDashboard, 10000);
     setInterval(refreshTsvCommands, 10000);
-  });
-})();
-`;
+  });`;
 }
