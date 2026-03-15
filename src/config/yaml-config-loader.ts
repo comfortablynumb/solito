@@ -82,7 +82,7 @@ export class YamlConfigLoader implements ConfigLoader {
     const validation = validateConfig(merged);
 
     if (!validation.success) {
-      const details = validation.errors?.join(", ") ?? "unknown error";
+      const details = validation.errors!.join(", ");
       this.logger.warn(`Warning: config validation failed (${details}), using defaults for invalid fields`);
     }
 

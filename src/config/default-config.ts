@@ -2,7 +2,7 @@ import { SolitoConfig } from "./config";
 
 export function listBuiltInCommandNames(): string[] {
   const defaults = createDefaultConfig();
-  return Object.keys(defaults.commands ?? {});
+  return Object.keys(defaults.commands!);
 }
 
 export function createDefaultConfig(): SolitoConfig {
@@ -46,6 +46,9 @@ export function createDefaultConfig(): SolitoConfig {
         variables: {
           max_loops_without_bugs: 3,
         },
+      },
+      "generate-spec": {
+        prompt: "${var:solito_root_dir}/prompts/generate-spec.md",
       },
     },
   };

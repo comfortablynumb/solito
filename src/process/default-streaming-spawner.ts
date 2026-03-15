@@ -50,7 +50,7 @@ export class DefaultStreamingSpawner implements StreamingProcessSpawner {
 
   private processBuffer(buffer: string, onLine: (line: string) => void): string {
     const lines = buffer.split("\n");
-    const remaining = lines.pop() ?? "";
+    const remaining = lines.pop()!;
 
     for (const line of lines) {
       onLine(line);

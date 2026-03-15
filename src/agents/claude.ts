@@ -200,7 +200,7 @@ function isStreamTextDelta(message: CliMessage): message is CliStreamEvent & {
   );
 }
 
-function redactLongArgs(args: string[]): string[] {
+export function redactLongArgs(args: string[]): string[] {
   const result: string[] = [];
 
   for (let i = 0; i < args.length; i++) {

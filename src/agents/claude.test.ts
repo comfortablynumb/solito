@@ -1,4 +1,4 @@
-import { ClaudeAgent, ClaudeAgentDeps } from "./claude";
+import { ClaudeAgent, ClaudeAgentDeps, redactLongArgs } from "./claude";
 import { SpawnResult } from "../process/spawner";
 import { StreamingSpawnOptions } from "../process/streaming-spawner";
 import { createMockChild } from "../test/mock-child-process";
@@ -460,5 +460,33 @@ describe("ClaudeAgent", () => {
     await handle.result;
 
     expect(logger.info).not.toHaveBeenCalled();
+  });
+});
+
+describe("redactLongArgs", () => {
+  it("passes through simple args unchanged", () => {
+    const result = redactLongArgs(["--print", "--verbose", "stream-json"]);
+    expect(result).toEqual(["--print", "--verbose", "stream-json"]);
+  });
+
+  it("quotes args containing spaces", () => {
+    const result = redactLongArgs(["--print", "has space", "--verbose"]);
+    expect(result).toEqual(["--print", '"has space"', "--verbose"]);
+  });
+
+  it("wraps short --append-system-prompt values in quotes without truncation", () => {
+    const shortValue = "short prompt";
+    const result = redactLongArgs(["--append-system-prompt", shortValue, "--verbose"]);
+    expect(result).toEqual(["--append-system-prompt", `"${shortValue}"`, "--verbose"]);
+    expect(result[1]).not.toContain("...");
+  });
+
+  it("truncates long --append-system-prompt values", () => {
+    const longValue = "A".repeat(200);
+    const result = redactLongArgs(["--append-system-prompt", longValue, "--verbose"]);
+    expect(result[0]).toBe("--append-system-prompt");
+    expect(result[1]).toContain("...");
+    expect(result[1].length).toBeLessThan(200);
+    expect(result[2]).toBe("--verbose");
   });
 });
