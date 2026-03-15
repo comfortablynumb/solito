@@ -97,7 +97,6 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
       });
       const cleanupTimeout = setupTimeoutWarnings({
         timedOut,
-        interrupted,
         timeoutMs,
         child: handle.child,
         logger,
@@ -124,7 +123,7 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
           break;
         }
 
-        if (isInterruptExitCode(result.exitCode)) {
+        if (isInterruptExitCode(result.exitCode) && !timedOut.value) {
           writeInterruptBanner(logger, startTime);
           return 130;
         }
@@ -134,7 +133,8 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
           return 1;
         }
 
-        lastExitCode = handle.iterationComplete.value ? 0 : result.exitCode;
+        const killedByTimeout = timedOut.value && isInterruptExitCode(result.exitCode);
+        lastExitCode = (handle.iterationComplete.value || killedByTimeout) ? 0 : result.exitCode;
 
         if (lastExitCode !== 0) {
           logAgentError(logger, result.exitCode, result.stderr);
@@ -349,7 +349,6 @@ function buildWarningText(level: WarningLevel, remainingMs: number): string {
 
 interface TimeoutWarningsOptions {
   timedOut: { value: boolean };
-  interrupted: { value: boolean };
   timeoutMs?: number;
   child: ChildProcess;
   logger: Logger;
@@ -357,7 +356,7 @@ interface TimeoutWarningsOptions {
 }
 
 function setupTimeoutWarnings(options: TimeoutWarningsOptions): () => void {
-  const { timedOut, interrupted, timeoutMs, child, logger, verboseLogger } = options;
+  const { timedOut, timeoutMs, child, logger, verboseLogger } = options;
 
   if (!timeoutMs) {
     return () => {};
@@ -373,7 +372,6 @@ function setupTimeoutWarnings(options: TimeoutWarningsOptions): () => void {
 
   if (softAt > 0) {
     timers.push(setTimeout(() => {
-      timedOut.value = true;
       const softRemaining = softRemainingMs / 60000;
       const lines = [
         `${ANSI.YELLOW}${ANSI.BOLD}${ICONS.WARNING} ${softRemaining} minutes remaining. Please start wrapping up.${ANSI.RESET}`,
@@ -398,8 +396,8 @@ function setupTimeoutWarnings(options: TimeoutWarningsOptions): () => void {
   }
 
   timers.push(setTimeout(() => {
-    interrupted.value = true;
-    const msg = `${ANSI.RED}${ANSI.BOLD}${ICONS.STOP} FINAL WARNING: Time expired. Forcing stop now. Any uncommitted changes will be lost.${ANSI.RESET}`;
+    timedOut.value = true;
+    const msg = `${ANSI.RED}${ANSI.BOLD}${ICONS.STOP} FINAL WARNING: Time expired. Restarting agent for next loop.${ANSI.RESET}`;
     logger.info(`\n${sep}\n${msg}\n${sep}`);
     writeStdinMessage({ child, text: buildWarningText("final", 0), logger: verboseLogger });
     killProcessTree(child);

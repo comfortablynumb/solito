@@ -29,7 +29,7 @@ export class JsonStreamParser implements StreamParser {
 
     try {
       return JSON.parse(trimmed) as CliMessage;
-    } catch (err) {
+    } catch {
       const preview = trimmed.length > PARSE_PREVIEW_MAX_LENGTH
         ? trimmed.slice(0, PARSE_PREVIEW_MAX_LENGTH) + "..."
         : trimmed;

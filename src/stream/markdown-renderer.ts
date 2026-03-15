@@ -38,7 +38,7 @@ export class TerminalMarkdownRenderer implements MarkdownRenderer {
       return;
     }
 
-    const origText = (renderer.text as Function).bind(renderer);
+    const origText = (renderer.text as (...args: unknown[]) => string).bind(renderer);
 
     renderer.text = function (
       this: { parser: { parseInline: (tokens: unknown[]) => string } },

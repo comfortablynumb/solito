@@ -109,7 +109,7 @@ describe("ConsoleStreamFormatter", () => {
       event: {
         type: "content_block_start",
         index: 0,
-        content_block: { type: "thinking", thinking: "" } as any,
+        content_block: { type: "thinking" as const, thinking: "" },
       },
     });
 
@@ -128,7 +128,7 @@ describe("ConsoleStreamFormatter", () => {
       event: {
         type: "content_block_start",
         index: 0,
-        content_block: { type: "thinking", thinking: "" } as any,
+        content_block: { type: "thinking" as const, thinking: "" },
       },
     });
 
