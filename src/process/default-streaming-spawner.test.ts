@@ -105,4 +105,19 @@ describe("DefaultStreamingSpawner", () => {
 
     await expect(handle.result).rejects.toThrow(/Failed to start "nonexistent-command-xyz"/);
   });
+
+  it("returns exitCode when process is killed", async () => {
+    const lines: string[] = [];
+
+    const handle = spawner.spawn({
+      command: "node",
+      args: ["-e", "setTimeout(() => {}, 60000)"],
+      onLine: (line) => lines.push(line),
+    });
+
+    handle.child.kill("SIGTERM");
+
+    const result = await handle.result;
+    expect(typeof result.exitCode).toBe("number");
+  });
 });

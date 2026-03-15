@@ -263,6 +263,10 @@ describe("parseArgs", () => {
     it("returns help for ui --help", () => {
       expect(parseArgs(["node", "solito", "ui", "--help"])).toEqual({ kind: "help" });
     });
+
+    it("returns help for ui -h", () => {
+      expect(parseArgs(["node", "solito", "ui", "-h"])).toEqual({ kind: "help" });
+    });
   });
 
   describe("config command", () => {

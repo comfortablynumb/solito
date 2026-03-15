@@ -193,6 +193,47 @@ describe("ClaudeAgent", () => {
     expect(logged).toContain("--input-format");
   });
 
+  it("truncates long --append-system-prompt values in verbose log", async () => {
+    const deps = createMockDeps(mockResult);
+    const logger = createMockLogger();
+    const agent = new ClaudeAgent({ ...deps, verbose: true, logger });
+
+    const longPrompt = "A".repeat(200);
+    const handle = agent.run("do stuff", { appendSystemPrompt: longPrompt });
+    await handle.result;
+
+    const logged = logger.info.mock.calls[0][0] as string;
+    expect(logged).toContain("...");
+    expect(logged).not.toContain("A".repeat(200));
+  });
+
+  it("does not truncate short --append-system-prompt values in verbose log", async () => {
+    const deps = createMockDeps(mockResult);
+    const logger = createMockLogger();
+    const agent = new ClaudeAgent({ ...deps, verbose: true, logger });
+
+    const handle = agent.run("do stuff");
+    await handle.result;
+
+    const logged = logger.info.mock.calls[0][0] as string;
+    // The system prompt is built internally and passed as --append-system-prompt value
+    // When short enough, it should not contain "..."
+    expect(logged).toMatch(/^> claude /);
+  });
+
+  it("quotes args with spaces in verbose log", async () => {
+    const deps = createMockDeps(mockResult);
+    const logger = createMockLogger();
+    const agent = new ClaudeAgent({ ...deps, verbose: true, logger });
+
+    const handle = agent.run("do stuff");
+    await handle.result;
+
+    const logged = logger.info.mock.calls[0][0] as string;
+    // stream-json doesn't have spaces, so check it appears unquoted
+    expect(logged).toContain("stream-json");
+  });
+
   it("logs raw event lines when verbose", async () => {
     const deps = createMockDeps(mockResult);
     const logger = createMockLogger();

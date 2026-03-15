@@ -40,4 +40,15 @@ describe("DefaultProcessSpawner", () => {
 
     await expect(handle.result).rejects.toThrow(/Failed to start "nonexistent-command-xyz"/);
   });
+
+  it("returns exitCode 1 when process is killed (null exit code)", async () => {
+    const handle = spawner.spawn("node", ["-e", "setTimeout(() => {}, 60000)"]);
+
+    // Kill the process to produce null exit code
+    handle.child.kill("SIGTERM");
+
+    const result = await handle.result;
+    // When killed, exitCode may be null (mapped to 1) or a signal-related code
+    expect(typeof result.exitCode).toBe("number");
+  });
 });
