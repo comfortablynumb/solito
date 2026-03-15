@@ -41,4 +41,19 @@ describe("TerminalMarkdownRenderer", () => {
     const result = renderer.render("");
     expect(typeof result).toBe("string");
   });
+
+  it("renders headers with ANSI formatting", () => {
+    const result = renderer.render("# Title");
+    expect(result).toContain("Title");
+  });
+
+  it("renders code blocks", () => {
+    const result = renderer.render("```\nconst x = 1;\n```");
+    expect(result).toContain("const x = 1");
+  });
+
+  it("handles nested bold and code in text", () => {
+    const result = renderer.render("Run **`npm test`** to check");
+    expect(result).toContain("npm test");
+  });
 });

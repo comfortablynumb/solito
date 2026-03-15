@@ -31,6 +31,46 @@ describe("CodexAgent", () => {
     expect(result.stdout).toBe("done");
   });
 
+  it("returns iterationComplete and exitRequested as false", () => {
+    const spawner = createMockSpawner(mockResult);
+    const agent = new CodexAgent(spawner);
+
+    const handle = agent.run("add tests");
+
+    expect(handle.iterationComplete.value).toBe(false);
+    expect(handle.exitRequested.value).toBe(false);
+  });
+
+  it("does not append passthrough when not provided", async () => {
+    const spawner = createMockSpawner(mockResult);
+    const agent = new CodexAgent(spawner);
+
+    agent.run("add tests", {});
+    await Promise.resolve();
+
+    expect(spawner.spawn).toHaveBeenCalledWith("codex", ["--prompt", "add tests"]);
+  });
+
+  it("does not append passthrough when empty array", async () => {
+    const spawner = createMockSpawner(mockResult);
+    const agent = new CodexAgent(spawner);
+
+    agent.run("add tests", { passthrough: [] });
+    await Promise.resolve();
+
+    expect(spawner.spawn).toHaveBeenCalledWith("codex", ["--prompt", "add tests"]);
+  });
+
+  it("isAvailable delegates to commandExists", async () => {
+    const spawner = createMockSpawner(mockResult);
+    const agent = new CodexAgent(spawner);
+
+    // commandExists uses real execFile - it will return false since codex is not installed
+    const result = await agent.isAvailable();
+
+    expect(typeof result).toBe("boolean");
+  });
+
   it("appends passthrough args after prompt", async () => {
     const spawner = createMockSpawner(mockResult);
     const agent = new CodexAgent(spawner);

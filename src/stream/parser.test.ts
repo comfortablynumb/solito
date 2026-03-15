@@ -61,6 +61,40 @@ describe("JsonStreamParser", () => {
     });
   });
 
+  it("truncates long lines in error preview", () => {
+    const logger = { warn: jest.fn() };
+    const parserWithLogger = new JsonStreamParser(logger);
+    const longLine = "x".repeat(200);
+
+    parserWithLogger.parseLine(longLine);
+
+    const warning = logger.warn.mock.calls[0][0] as string;
+    expect(warning).toContain("...");
+    expect(warning.length).toBeLessThan(longLine.length + 50);
+  });
+
+  it("does not truncate short lines in error preview", () => {
+    const logger = { warn: jest.fn() };
+    const parserWithLogger = new JsonStreamParser(logger);
+    const shortLine = "not json";
+
+    parserWithLogger.parseLine(shortLine);
+
+    const warning = logger.warn.mock.calls[0][0] as string;
+    expect(warning).not.toContain("...");
+    expect(warning).toContain("not json");
+  });
+
+  it("uses default logger when none provided", () => {
+    const spy = jest.spyOn(console, "error").mockImplementation();
+    const defaultParser = new JsonStreamParser();
+
+    defaultParser.parseLine("bad json");
+
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("bad json"));
+    spy.mockRestore();
+  });
+
   it("parses result message", () => {
     const line = JSON.stringify({
       type: "result",

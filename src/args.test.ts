@@ -1,4 +1,4 @@
-import { parseArgs, listBuiltInSubcommands } from "./args";
+import { parseArgs, listBuiltInSubcommands, printUsage } from "./args";
 
 const DEFAULT_METRICS = { reportMetrics: false, apiHost: "localhost", apiPort: 19191 };
 
@@ -303,6 +303,21 @@ describe("parseArgs", () => {
     it("returns help for -h within prompt subcommand", () => {
       expect(parseArgs(["node", "solito", "prompt", "-h"])).toEqual({ kind: "help" });
     });
+  });
+});
+
+describe("printUsage", () => {
+  it("prints usage information to console", () => {
+    const spy = jest.spyOn(console, "log").mockImplementation();
+    printUsage();
+
+    expect(spy).toHaveBeenCalled();
+    const output = spy.mock.calls.map((c) => c[0]).join("\n");
+    expect(output).toContain("Usage: solito");
+    expect(output).toContain("quality");
+    expect(output).toContain("--agent");
+    expect(output).toContain("--verbose");
+    spy.mockRestore();
   });
 });
 

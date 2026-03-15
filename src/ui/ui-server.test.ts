@@ -30,6 +30,26 @@ describe("UiServer", () => {
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Solito UI running"));
   });
 
+  it("rejects on server error during start", async () => {
+    const dispatcher = createMockDispatcher();
+    const logger = createMockLogger();
+    // Use an invalid port to trigger error
+    server = new UiServer({ dispatcher, host: "127.0.0.1", port: 0, logger });
+
+    await server.start();
+
+    // Start a second server on the same port to trigger EADDRINUSE
+    const server2 = new UiServer({
+      dispatcher,
+      host: "127.0.0.1",
+      port: (server as unknown as { server: { address: () => { port: number } } }).server.address().port,
+      logger,
+    });
+
+    await expect(server2.start()).rejects.toThrow();
+    await server2.stop();
+  });
+
   it("stops cleanly", async () => {
     const dispatcher = createMockDispatcher();
     const logger = createMockLogger();

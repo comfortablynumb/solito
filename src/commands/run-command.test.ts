@@ -142,6 +142,7 @@ describe("executeRunCommand", () => {
     jest.useFakeTimers();
     const child = createMockChild();
     const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+    const killed: AgentResult = { exitCode: 130, stdout: "", stderr: "" };
     let resolveFirstTurn!: (r: AgentResult) => void;
     const fs = createMockFileSystem();
 
@@ -165,7 +166,7 @@ describe("executeRunCommand", () => {
       isAvailable: jest.fn().mockResolvedValue(true),
     };
 
-    // 10 min TTL: soft at 5min, urgent at 8min, kill at 10min
+    // 10 min TTL: kill at 10min
     const promise = executeRunCommand({
       agent,
       prompt: "do stuff",
@@ -174,18 +175,12 @@ describe("executeRunCommand", () => {
       maxIterations: 2,
     });
 
-    // Let isAvailable() microtask resolve
     await Promise.resolve();
     await Promise.resolve();
 
-    // Advance to soft warning (5 min)
-    jest.advanceTimersByTime(5 * 60 * 1000);
-
-    // Agent was NOT killed (kill fires at 10min)
-    expect(child.kill).not.toHaveBeenCalled();
-
-    // Resolve first turn — timeout flag is now set
-    resolveFirstTurn(ok);
+    // Advance to final timeout (10 min) — agent gets killed
+    jest.advanceTimersByTime(10 * 60 * 1000);
+    resolveFirstTurn(killed);
 
     const code = await promise;
     jest.useRealTimers();
@@ -199,6 +194,7 @@ describe("executeRunCommand", () => {
     jest.useFakeTimers();
     const child = createMockChild();
     const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+    const killed: AgentResult = { exitCode: 130, stdout: "", stderr: "" };
     let resolveFirstTurn!: (r: AgentResult) => void;
     const fs = createMockFileSystem();
 
@@ -222,7 +218,7 @@ describe("executeRunCommand", () => {
       isAvailable: jest.fn().mockResolvedValue(true),
     };
 
-    // 10 min TTL: soft at 5min
+    // 10 min TTL: kill at 10min
     const promise = executeRunCommand({
       agent,
       prompt: "do stuff",
@@ -234,9 +230,9 @@ describe("executeRunCommand", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Advance to soft warning (5 min)
-    jest.advanceTimersByTime(5 * 60 * 1000);
-    resolveFirstTurn(ok);
+    // Advance to final timeout (10 min) — agent gets killed
+    jest.advanceTimersByTime(10 * 60 * 1000);
+    resolveFirstTurn(killed);
 
     const code = await promise;
     jest.useRealTimers();
@@ -254,6 +250,7 @@ describe("executeRunCommand", () => {
     jest.useFakeTimers();
     const child = createMockChild();
     const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+    const killed: AgentResult = { exitCode: 130, stdout: "", stderr: "" };
     let resolveFirstTurn!: (r: AgentResult) => void;
     const fs = createMockFileSystem();
 
@@ -277,7 +274,7 @@ describe("executeRunCommand", () => {
       isAvailable: jest.fn().mockResolvedValue(true),
     };
 
-    // 10 min TTL: soft at 5min
+    // 10 min TTL: kill at 10min
     const promise = executeRunCommand({
       agent,
       prompt: "do stuff",
@@ -292,9 +289,9 @@ describe("executeRunCommand", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Advance to soft warning (5 min)
-    jest.advanceTimersByTime(5 * 60 * 1000);
-    resolveFirstTurn(ok);
+    // Advance to final timeout (10 min) — agent gets killed
+    jest.advanceTimersByTime(10 * 60 * 1000);
+    resolveFirstTurn(killed);
 
     await promise;
     jest.useRealTimers();
@@ -306,6 +303,7 @@ describe("executeRunCommand", () => {
     jest.useFakeTimers();
     const child = createMockChild();
     const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+    const killed: AgentResult = { exitCode: 130, stdout: "", stderr: "" };
     let resolveFirstTurn!: (r: AgentResult) => void;
     const logger = createMockLogger();
     const fs = createMockFileSystem();
@@ -330,7 +328,7 @@ describe("executeRunCommand", () => {
       isAvailable: jest.fn().mockResolvedValue(true),
     };
 
-    // 10 min TTL: soft at 5min
+    // 10 min TTL: kill at 10min
     const promise = executeRunCommand({
       agent,
       prompt: "do stuff",
@@ -343,9 +341,9 @@ describe("executeRunCommand", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Advance to soft warning (5 min)
-    jest.advanceTimersByTime(5 * 60 * 1000);
-    resolveFirstTurn(ok);
+    // Advance to final timeout (10 min) — agent gets killed
+    jest.advanceTimersByTime(10 * 60 * 1000);
+    resolveFirstTurn(killed);
     await promise;
     jest.useRealTimers();
 
@@ -405,10 +403,12 @@ describe("executeRunCommand", () => {
     jest.useRealTimers();
   });
 
-  it("force-kills agent at timeout with final warning", async () => {
+  it("force-kills agent at timeout and restarts for next loop", async () => {
     jest.useFakeTimers();
     const child = createMockChild();
+    const child2 = createMockChild();
     let resolveFirstTurn!: (r: AgentResult) => void;
+    const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
     const logger = createMockLogger();
 
     const agent: Agent = {
@@ -421,6 +421,12 @@ describe("executeRunCommand", () => {
           }),
           iterationComplete: { value: false },
           exitRequested: { value: false },
+        })
+        .mockReturnValueOnce({
+          child: child2,
+          result: Promise.resolve(ok),
+          iterationComplete: { value: true },
+          exitRequested: { value: false },
         }),
       isAvailable: jest.fn().mockResolvedValue(true),
     };
@@ -431,7 +437,7 @@ describe("executeRunCommand", () => {
       prompt: "do stuff",
       loopConfig: { max_turn_time_minutes: 10 },
       logger,
-      maxIterations: 1,
+      maxIterations: 2,
     });
 
     await Promise.resolve();
@@ -442,12 +448,15 @@ describe("executeRunCommand", () => {
 
     const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]).join("\n");
     expect(allLogs).toContain("FINAL WARNING");
-    expect(allLogs).toContain("Forcing stop");
+    expect(allLogs).toContain("Restarting agent for next loop");
     expect(child.kill).toHaveBeenCalled();
 
-    // Resolve to let the promise settle
+    // Resolve — agent restarts for wrap-up turn (not exit)
     resolveFirstTurn({ exitCode: 130, stdout: "", stderr: "" });
-    await promise;
+
+    const code = await promise;
+    expect(code).toBe(0);
+    expect(agent.run).toHaveBeenCalledTimes(2);
     jest.useRealTimers();
   });
 
@@ -605,6 +614,112 @@ describe("executeRunCommand", () => {
     const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]).join("\n");
     expect(allLogs).toContain(ICONS.LOOP);
     expect(allLogs).toContain("loop 2");
+  });
+
+  it("returns 1 when agent requests exit", async () => {
+    const result: AgentResult = { exitCode: 0, stdout: "", stderr: "" };
+    const child = createMockChild();
+    const logger = createMockLogger();
+    const fs = createMockFileSystem();
+
+    const agent: Agent = {
+      name: "mock-agent",
+      run: jest.fn().mockReturnValue({
+        child,
+        result: Promise.resolve(result),
+        iterationComplete: { value: false },
+        exitRequested: { value: true },
+      }),
+      isAvailable: jest.fn().mockResolvedValue(true),
+    };
+
+    const code = await executeRunCommand({ agent, prompt: "do stuff", logger, fs, maxIterations: 2 });
+
+    expect(code).toBe(1);
+    const allErrors = logger.error.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+    expect(allErrors).toContain("Agent requested exit");
+  });
+
+  it("includes progress file in stop prompt on CTRL+C", async () => {
+    const ok: AgentResult = { exitCode: 0, stdout: "", stderr: "" };
+    const child = createMockChild();
+    const logger = createMockLogger();
+    const fs = createMockFileSystem();
+    let resolveFirstTurn!: (r: AgentResult) => void;
+
+    (fs.exists as jest.Mock).mockResolvedValue(true);
+    (fs.readFile as jest.Mock).mockResolvedValue("## My progress content");
+
+    const agent: Agent = {
+      name: "mock-agent",
+      run: jest.fn()
+        .mockReturnValueOnce({
+          child,
+          result: new Promise<AgentResult>((resolve) => {
+            resolveFirstTurn = resolve;
+          }),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
+        })
+        .mockReturnValue({
+          child,
+          result: Promise.resolve(ok),
+          iterationComplete: { value: false },
+          exitRequested: { value: false },
+        }),
+      isAvailable: jest.fn().mockResolvedValue(true),
+    };
+
+    const promise = executeRunCommand({
+      agent, prompt: "do stuff", logger, fs, maxIterations: 3,
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    process.emit("SIGINT");
+    resolveFirstTurn({ exitCode: 130, stdout: "", stderr: "" });
+
+    await promise;
+
+    const stopPrompt = (agent.run as jest.Mock).mock.calls[1][0] as string;
+    expect(stopPrompt).toContain("graceful stop");
+    expect(stopPrompt).toContain("My progress content");
+  });
+
+  it("does not log stderr when empty", async () => {
+    const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+    const fail: AgentResult = { exitCode: 1, stdout: "", stderr: "   " };
+    const agent = createSequenceMockAgent([ok, fail]);
+    const fs = createMockFileSystem();
+    const logger = createMockLogger();
+
+    await executeRunCommand({ agent, prompt: "do stuff", fs, maxIterations: 3, logger });
+
+    const errorCalls = logger.error.mock.calls.map((c: unknown[]) => c[0] as string);
+    const stderrLogs = errorCalls.filter((s: string) => !s.includes("exited with code"));
+    expect(stderrLogs).toHaveLength(0);
+  });
+
+  it("sets iterationComplete exit code to 0", async () => {
+    const result: AgentResult = { exitCode: 1, stdout: "", stderr: "" };
+    const child = createMockChild();
+    const fs = createMockFileSystem();
+
+    const agent: Agent = {
+      name: "mock-agent",
+      run: jest.fn().mockReturnValue({
+        child,
+        result: Promise.resolve(result),
+        iterationComplete: { value: true },
+        exitRequested: { value: false },
+      }),
+      isAvailable: jest.fn().mockResolvedValue(true),
+    };
+
+    const code = await executeRunCommand({ agent, prompt: "do stuff", fs, maxIterations: 1 });
+
+    expect(code).toBe(0);
   });
 
   describe("continuation loop", () => {

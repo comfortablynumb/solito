@@ -1,4 +1,4 @@
-import { createDefaultConfig, mergeWithDefaults } from "./default-config";
+import { createDefaultConfig, mergeWithDefaults, listBuiltInCommandNames } from "./default-config";
 
 describe("createDefaultConfig", () => {
   it("returns config with claude as default agent", () => {
@@ -34,6 +34,24 @@ describe("createDefaultConfig", () => {
     expect(config.commands?.["hunt-bugs"]).toBeDefined();
     expect(config.commands?.["hunt-bugs"].prompt).toContain("prompts/hunt-bugs.md");
     expect(config.commands?.["hunt-bugs"].variables?.max_loops_without_bugs).toBe(3);
+  });
+});
+
+describe("listBuiltInCommandNames", () => {
+  it("returns all default command names", () => {
+    const names = listBuiltInCommandNames();
+
+    expect(names).toContain("quality");
+    expect(names).toContain("build");
+    expect(names).toContain("hunt-bugs");
+    expect(names).toContain("generate-spec");
+  });
+
+  it("returns an array of strings", () => {
+    const names = listBuiltInCommandNames();
+
+    expect(Array.isArray(names)).toBe(true);
+    names.forEach((name) => expect(typeof name).toBe("string"));
   });
 });
 

@@ -56,6 +56,13 @@ describe("DefaultVariableResolver", () => {
       expect(result).toBe("strict=true");
     });
 
+    it("falls back to original token when variable value is undefined in variables", () => {
+      const variables: CommandVariables = { other: "val" };
+      const result = resolver.resolve("${var:missing_key}", variables);
+
+      expect(result).toBe("${var:missing_key}");
+    });
+
     it("resolves custom built-in variables", () => {
       const customResolver = new DefaultVariableResolver({
         solitoRootDir: "/fake/solito",
