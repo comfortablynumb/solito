@@ -83,6 +83,52 @@ describe("DefaultCommandResolver", () => {
     expect(result.prompt).toBe("Min threshold: 0.5%");
   });
 
+  it("resolves first word as command name with inline prompt", async () => {
+    const commands: Record<string, CommandConfig> = {
+      "generate-spec": { prompt: "${var:solito_root_dir}/prompts/gen.md" },
+    };
+    const filesystem = createMockFileSystem({
+      "/solito/prompts/gen.md": "Generate a spec.",
+    });
+    const resolver = new DefaultCommandResolver({
+      filesystem,
+      variableResolver: createMockResolver(),
+      commands,
+    });
+
+    const result = await resolver.resolve("generate-spec Add a users endpoint");
+
+    expect(result.prompt).toBe("Generate a spec.");
+    expect(result.isCommand).toBe(true);
+    expect(result.commandName).toBe("generate-spec");
+    expect(result.inlinePrompt).toBe("Add a users endpoint");
+  });
+
+  it("returns not-a-command when first word does not match any command", async () => {
+    const resolver = new DefaultCommandResolver({
+      filesystem: createMockFileSystem(),
+      variableResolver: createMockResolver(),
+      commands: { quality: { prompt: "${var:solito_root_dir}/prompts/q.md" } },
+    });
+
+    const result = await resolver.resolve("unknown-cmd do something");
+
+    expect(result.isCommand).toBe(false);
+    expect(result.inlinePrompt).toBeUndefined();
+  });
+
+  it("defaults to empty commands when commands is undefined", async () => {
+    const resolver = new DefaultCommandResolver({
+      filesystem: createMockFileSystem(),
+      variableResolver: createMockResolver(),
+    });
+
+    const result = await resolver.resolve("anything");
+
+    expect(result.isCommand).toBe(false);
+    expect(result.prompt).toBe("anything");
+  });
+
   it("throws when prompt file does not exist", async () => {
     const commands: Record<string, CommandConfig> = {
       missing: { prompt: "${var:solito_root_dir}/prompts/missing.md" },
