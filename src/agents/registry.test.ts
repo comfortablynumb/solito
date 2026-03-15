@@ -1,4 +1,4 @@
-import { getAgent, listAgentNames, registerAgent } from "./registry";
+import { getAgent, listAgentNames, registerAgent, stdoutWrite } from "./registry";
 
 describe("registry", () => {
   describe("getAgent", () => {
@@ -24,6 +24,16 @@ describe("registry", () => {
       const names = listAgentNames();
       expect(names).toContain("claude");
       expect(names).toContain("codex");
+    });
+  });
+
+  describe("stdoutWrite", () => {
+    it("delegates to process.stdout.write", () => {
+      const spy = jest.spyOn(process.stdout, "write").mockReturnValue(true);
+      const result = stdoutWrite("hello");
+      expect(spy).toHaveBeenCalledWith("hello");
+      expect(result).toBe(true);
+      spy.mockRestore();
     });
   });
 

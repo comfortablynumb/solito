@@ -35,10 +35,14 @@ export function listAgentNames(): string[] {
   return Array.from(factories.keys());
 }
 
+export function stdoutWrite(text: string): boolean {
+  return process.stdout.write(text);
+}
+
 function registerBuiltinAgents(): void {
   const processSpawner = new DefaultProcessSpawner();
   const streamingSpawner = new DefaultStreamingSpawner();
-  const stdoutOutput = { write: (t: string) => process.stdout.write(t) };
+  const stdoutOutput = { write: stdoutWrite };
 
   const markdownRenderer = new TerminalMarkdownRenderer();
 

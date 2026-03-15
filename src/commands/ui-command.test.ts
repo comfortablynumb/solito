@@ -1,6 +1,16 @@
-import { executeUiCommand } from "./ui-command";
+import { executeUiCommand, ignoreStopError } from "./ui-command";
 import { createMockFileSystem } from "../test/mock-filesystem";
 import { createMockLogger } from "../test/mock-logger";
+
+describe("ignoreStopError", () => {
+  it("does nothing when called", () => {
+    expect(() => ignoreStopError()).not.toThrow();
+  });
+
+  it("returns undefined", () => {
+    expect(ignoreStopError()).toBeUndefined();
+  });
+});
 
 describe("executeUiCommand", () => {
   it("starts server and exits immediately on SIGINT", async () => {
