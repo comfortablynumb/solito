@@ -15,7 +15,7 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 - `src/commands/config-command.ts` - Displays effective config as YAML plus project overrides section
 - `src/commands/ui-command.ts` - `executeUiCommand()`: starts metrics dashboard server, waits for SIGINT/SIGTERM
 - `src/commands/command-resolver.ts` - `CommandResolver` interface, `DefaultCommandResolver`: resolves named commands to prompt file content with variable interpolation. Supports inline prompt: `solito <command> '<text>'` extracts first word as command name, rest as `inlinePrompt`
-- `src/config/config.ts` - `SolitoConfig`, `AgentConfig`, `LoopConfig`, `CommandConfig`, `CommandVariables`, `ConfigLoader` types
+- `src/config/config.ts` - `SolitoConfig`, `AgentConfig`, `LoopConfig`, `StaleThresholds`, `CommandConfig`, `CommandVariables`, `ConfigLoader` types
 - `src/config/config-schema.ts` - Zod schema validation for config (including commands)
 - `src/config/default-config.ts` - Default config values and merge logic (includes `quality`, `build`, `hunt-bugs`, and `generate-spec` commands)
 - `src/config/config-merger.ts` - `mergeProjectConfig()`: deep merges project config overrides into global config
@@ -54,6 +54,7 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 - `src/ui/ui-server.ts` - `HttpServer` interface, `UiServer`: Node.js `http` server wrapping route dispatcher
 - `src/metrics/metrics-reporter.ts` - `MetricsReporter` interface, `HttpMetricsReporter`: `ping()` validates server reachability, `report()` POSTs metric payloads
 - `src/metrics/metrics-watcher.ts` - `MetricsWatcher` interface, `TsvMetricsWatcher`: polls TSV file for new rows and reports via `MetricsReporter`
+- `src/metrics/stale-metrics-checker.ts` - `StaleMetricsChecker` interface, `TsvStaleMetricsChecker`: two-tier stale warning system. Tracks phase (normal→warned_once→warned_twice→stop). First warning injects "try different approach" into continuation prompt, second warning escalates, then stops. Resets on improvement. Configurable thresholds via `loop.stale: { first_warning, second_warning, stop }` (all default 2)
 - `src/test/` - Shared test utilities (mock-child-process, mock-filesystem, mock-agent, mock-logger)
 
 ## Commands

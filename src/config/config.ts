@@ -3,10 +3,17 @@ export interface AgentConfig {
   append_system_prompt?: string;
 }
 
+export interface StaleThresholds {
+  first_warning: number;
+  second_warning: number;
+  stop: number;
+}
+
 export interface LoopConfig {
   max_turn_time_minutes: number;
   continue_prompt?: string;
   timeout_prompt?: string;
+  stale?: StaleThresholds;
 }
 
 export interface CommandVariables {

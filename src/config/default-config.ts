@@ -10,6 +10,11 @@ export function createDefaultConfig(): SolitoConfig {
     default_agent: "claude",
     loop: {
       max_turn_time_minutes: 15,
+      stale: {
+        first_warning: 2,
+        second_warning: 2,
+        stop: 2,
+      },
       continue_prompt: "Continue where you left off.",
       timeout_prompt: "You have reached the time limit for this loop. Please finish what you are currently doing and provide a summary of your progress.",
     },
@@ -62,6 +67,7 @@ export function mergeWithDefaults(partial: Partial<SolitoConfig>): SolitoConfig 
     loop: {
       max_turn_time_minutes:
         partial.loop?.max_turn_time_minutes ?? defaults.loop.max_turn_time_minutes,
+      stale: partial.loop?.stale ?? defaults.loop.stale,
       continue_prompt:
         partial.loop?.continue_prompt ?? defaults.loop.continue_prompt,
       timeout_prompt:

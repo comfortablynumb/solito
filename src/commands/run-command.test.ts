@@ -5,6 +5,7 @@ import { createMockAgent, createSequenceMockAgent } from "../test/mock-agent";
 import { createMockLogger } from "../test/mock-logger";
 import { createMockFileSystem } from "../test/mock-filesystem";
 import { ICONS } from "../constants";
+import { StaleMetricsChecker, StaleCheckResult } from "../metrics/stale-metrics-checker";
 
 describe("executeRunCommand", () => {
   beforeEach(() => {
@@ -1161,6 +1162,103 @@ describe("executeRunCommand", () => {
         expect.stringContaining("loop-progress"),
         "",
       );
+    });
+  });
+
+  describe("stale metrics warnings", () => {
+    function createMockStaleChecker(results: StaleCheckResult[]): StaleMetricsChecker {
+      let callIndex = 0;
+      return {
+        checkAfterIteration: jest.fn().mockImplementation(() => {
+          const result = results[callIndex] ?? results[results.length - 1];
+          callIndex++;
+          return Promise.resolve(result);
+        }),
+      };
+    }
+
+    it("stops when stale checker returns stop level", async () => {
+      const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+      const agent = createSequenceMockAgent([ok, ok, ok]);
+      const fs = createMockFileSystem();
+      const logger = createMockLogger();
+
+      const staleChecker = createMockStaleChecker([
+        { level: "stop", staleCount: 6, message: "No improvements after 6 iterations" },
+      ]);
+
+      const code = await executeRunCommand({
+        agent, prompt: "do stuff", fs, maxIterations: 10, logger, staleChecker,
+      });
+
+      expect(agent.run).toHaveBeenCalledTimes(1);
+      expect(code).toBe(0);
+
+      const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+      expect(allLogs).toContain("no improvements detected");
+    });
+
+    it("injects first_warning prompt into continuation", async () => {
+      const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+      const agent = createSequenceMockAgent([ok, ok, ok]);
+      const fs = createMockFileSystem();
+      const logger = createMockLogger();
+
+      const staleChecker = createMockStaleChecker([
+        { level: "first_warning", staleCount: 2, warningPrompt: "Try a different approach!" },
+        { level: "none", staleCount: 3 },
+      ]);
+
+      await executeRunCommand({
+        agent, prompt: "do stuff", fs, maxIterations: 3, logger, staleChecker,
+      });
+
+      const secondCallPrompt = (agent.run as jest.Mock).mock.calls[1][0] as string;
+      expect(secondCallPrompt).toContain("Try a different approach!");
+      expect(secondCallPrompt).toContain("Continue where you left off");
+
+      const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+      expect(allLogs).toContain("STALE WARNING");
+    });
+
+    it("injects second_warning prompt into continuation", async () => {
+      const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+      const agent = createSequenceMockAgent([ok, ok, ok]);
+      const fs = createMockFileSystem();
+      const logger = createMockLogger();
+
+      const staleChecker = createMockStaleChecker([
+        { level: "second_warning", staleCount: 4, warningPrompt: "FINAL: Change strategy now!" },
+        { level: "none", staleCount: 5 },
+      ]);
+
+      await executeRunCommand({
+        agent, prompt: "do stuff", fs, maxIterations: 3, logger, staleChecker,
+      });
+
+      const secondCallPrompt = (agent.run as jest.Mock).mock.calls[1][0] as string;
+      expect(secondCallPrompt).toContain("FINAL: Change strategy now!");
+
+      const allLogs = logger.info.mock.calls.map((c: unknown[]) => c[0]).join("\n");
+      expect(allLogs).toContain("FINAL STALE WARNING");
+    });
+
+    it("does not inject warning when level is none", async () => {
+      const ok: AgentResult = { exitCode: 0, stdout: "ok", stderr: "" };
+      const agent = createSequenceMockAgent([ok, ok]);
+      const fs = createMockFileSystem();
+
+      const staleChecker = createMockStaleChecker([
+        { level: "none", staleCount: 1 },
+      ]);
+
+      await executeRunCommand({
+        agent, prompt: "do stuff", fs, maxIterations: 2, staleChecker,
+      });
+
+      const secondCallPrompt = (agent.run as jest.Mock).mock.calls[1][0] as string;
+      expect(secondCallPrompt).not.toContain("WARNING");
+      expect(secondCallPrompt).toContain("Continue where you left off");
     });
   });
 });

@@ -3,6 +3,7 @@ import { Agent, AgentRunOptions } from "../agents/agent";
 import { AgentConfig, LoopConfig } from "../config/config";
 import { FileSystem } from "../filesystem/filesystem";
 import { DefaultFileSystem } from "../filesystem/default-filesystem";
+import { StaleMetricsChecker, StaleWarningLevel } from "../metrics/stale-metrics-checker";
 import { Logger, ConsoleLogger } from "../util/logger";
 import { getConfigDir } from "../util/paths";
 import { ANSI, SEPARATOR, ICONS } from "../constants";
@@ -31,6 +32,7 @@ export interface RunCommandParams {
   logger?: Logger;
   fs?: FileSystem;
   maxIterations?: number;
+  staleChecker?: StaleMetricsChecker;
 }
 
 interface LoopState {
@@ -59,6 +61,7 @@ interface LoopContext {
   stopAfterIteration: { value: boolean };
   timedOut: { value: boolean };
   startTime: number;
+  staleChecker?: StaleMetricsChecker;
 }
 
 export async function executeRunCommand(params: RunCommandParams): Promise<number> {
@@ -111,6 +114,7 @@ function buildLoopContext(params: RunCommandParams): LoopContext {
     stopAfterIteration: { value: false },
     timedOut: { value: false },
     startTime: Date.now(),
+    staleChecker: params.staleChecker,
   };
 }
 
@@ -132,12 +136,29 @@ async function runLoop(ctx: LoopContext, state: LoopState): Promise<number> {
 
     if (iterResult.action === "break") break;
 
+    let staleWarning: string | undefined;
+
+    if (ctx.staleChecker) {
+      const staleResult = await ctx.staleChecker.checkAfterIteration();
+
+      if (staleResult.level === "stop") {
+        writeStaleBanner(ctx.logger, ctx.startTime, staleResult.message ?? "");
+        return state.lastExitCode;
+      }
+
+      if (staleResult.warningPrompt) {
+        staleWarning = staleResult.warningPrompt;
+        writeStaleWarningBanner(ctx.logger, staleResult.level, staleResult.staleCount);
+      }
+    }
+
     state.currentPrompt = await buildContinuationPrompt({
       fs: ctx.fs,
       progressFilePath: ctx.progressFilePath,
       timedOut: ctx.timedOut.value,
       continuePrompt: ctx.continuePrompt,
       timeoutPrompt: ctx.timeoutPrompt,
+      staleWarning,
     });
     state.isFinalTurn = ctx.timedOut.value;
     state.isFirstRun = false;
@@ -318,24 +339,24 @@ interface ContinuationPromptParams {
   timedOut: boolean;
   continuePrompt: string;
   timeoutPrompt: string;
+  staleWarning?: string;
 }
 
 async function buildContinuationPrompt(params: ContinuationPromptParams): Promise<string> {
-  const { fs, progressFilePath, timedOut, continuePrompt, timeoutPrompt } = params;
+  const { fs, progressFilePath, timedOut, continuePrompt, timeoutPrompt, staleWarning } = params;
   const basePrompt = timedOut ? timeoutPrompt : continuePrompt;
   const progress = await readProgressFile(fs, progressFilePath);
+  const parts: string[] = [basePrompt];
 
-  if (!progress) {
-    return basePrompt;
+  if (staleWarning) {
+    parts.push("", staleWarning);
   }
 
-  return [
-    basePrompt,
-    "",
-    "## Progress from previous iteration",
-    "",
-    progress,
-  ].join("\n");
+  if (progress) {
+    parts.push("", "## Progress from previous iteration", "", progress);
+  }
+
+  return parts.join("\n");
 }
 
 async function readProgressFile(fs: FileSystem, filePath: string): Promise<string | null> {
@@ -513,6 +534,22 @@ function writeInterruptBanner(logger: Logger, startTime: number): void {
   const sep = `${ANSI.DIM}${SEPARATOR}${ANSI.RESET}`;
   const message = `${ANSI.RED}${ANSI.BOLD}${ICONS.STOP} Interrupted after ${elapsed}. Goodbye.${ANSI.RESET}`;
   logger.info(`\n${sep}\n${message}\n${sep}`);
+}
+
+function writeStaleBanner(logger: Logger, startTime: number, message: string): void {
+  const elapsed = formatElapsed(Date.now() - startTime);
+  const sep = `${ANSI.DIM}${SEPARATOR}${ANSI.RESET}`;
+  const header = `${ANSI.YELLOW}${ANSI.BOLD}${ICONS.STOP} Stopped after ${elapsed} — no improvements detected.${ANSI.RESET}`;
+  const body = message.split("\n").map((l) => `${ANSI.YELLOW}${l}${ANSI.RESET}`).join("\n");
+  logger.info(`\n${sep}\n${header}\n${body}\n${sep}`);
+}
+
+function writeStaleWarningBanner(logger: Logger, level: StaleWarningLevel, staleCount: number): void {
+  const sep = `${ANSI.DIM}${SEPARATOR}${ANSI.RESET}`;
+  const label = level === "first_warning" ? "STALE WARNING" : "FINAL STALE WARNING";
+  const color = level === "first_warning" ? ANSI.YELLOW : ANSI.RED;
+  const header = `${color}${ANSI.BOLD}${ICONS.WARNING} ${label}: No metric improvements for ${staleCount} iterations.${ANSI.RESET}`;
+  logger.info(`\n${sep}\n${header}\n${sep}`);
 }
 
 function writeStopBanner(logger: Logger, startTime: number): void {

@@ -5,10 +5,17 @@ const agentConfigSchema = z.object({
   append_system_prompt: z.string().optional(),
 });
 
+const staleThresholdsSchema = z.object({
+  first_warning: z.number().int().positive(),
+  second_warning: z.number().int().positive(),
+  stop: z.number().int().positive(),
+});
+
 const loopConfigSchema = z.object({
   max_turn_time_minutes: z.number().positive(),
   continue_prompt: z.string().optional(),
   timeout_prompt: z.string().optional(),
+  stale: staleThresholdsSchema.optional(),
 });
 
 const commandVariablesSchema: z.ZodType<Record<string, string | number | boolean | Record<string, unknown>>> = z.lazy(() =>

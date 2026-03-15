@@ -1,295 +1,191 @@
 # Solito
 
-CLI wrapper for running AI agents like Claude, Codex, and more. Provides a unified interface to execute different AI coding agents with a single command.
+CLI that wraps AI agents (Claude, Codex, etc.) in a continuation loop with automatic progress tracking, timeout management, stale-detection, and a real-time metrics dashboard.
 
 ## Installation
 
 ```bash
-npm install
-npm run build
-npm link   # makes 'solito' available globally
+npm install -g solito
 ```
 
-## Usage
+Requires [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) or [Codex CLI](https://github.com/openai/codex) installed and available in PATH.
+
+## Quick Start
 
 ```bash
-solito <command> [options]
+solito quality                    # Improve test coverage and code quality
+solito build                      # Build features from spec files
+solito hunt-bugs                  # Find and fix bugs
+solito generate-spec 'Add /api/users endpoint'
+solito prompt 'refactor the auth module'
+solito config                     # View effective configuration
 ```
 
-### Commands
+## Built-in Commands
 
-| Command | Description |
-|---|---|
-| `<command-name>` | Run a named command (built-in or custom) |
-| `prompt <prompt>` | Run an agent with a raw prompt |
-| `config` | Show current configuration |
+| Command         | Description                                                                 |
+|-----------------|-----------------------------------------------------------------------------|
+| `quality`       | Continuously improves test coverage, reduces complexity, and fixes linting  |
+| `build`         | Builds features from spec files using test-driven development               |
+| `hunt-bugs`     | Scans code for bugs, writes failing tests, fixes them                       |
+| `generate-spec` | Analyzes a project and generates actionable spec files in `specs/`          |
 
-### Options
+## CLI Usage
 
-| Option | Description |
-|---|---|
-| `--agent`, `-a` | Agent to use (default: from config). Available: `claude`, `codex` |
-| `--verbose`, `-v` | Show additional metadata (message IDs, models, tokens, costs, session info) |
-| `--spec <path>` | Path to a spec file for context (used by commands like `hunt-bugs`) |
-| `--prompt`, `-p` | Additional guidance for the agent (used by commands like `hunt-bugs`) |
-| `--help`, `-h` | Show help message |
-| `--` | Separator for passthrough args sent directly to the underlying agent CLI |
+```
+solito <command> [options]
+
+Subcommands:
+  <command-name>               Run a named command (built-in or custom)
+  prompt <prompt>              Run an agent with a raw prompt
+  config                       Show current configuration
+  ui                           Start the metrics dashboard
+  help                         Show help
+
+Options:
+  --agent, -a <name>     Agent to use (default: from config)
+  --verbose, -v          Show agent stream metadata
+  --spec <path>          Spec file for additional context
+  --prompt, -p <text>    Additional guidance for the agent
+  --report-metrics       Send metrics to a running dashboard
+  --api-host <host>      Metrics server host (default: localhost)
+  --api-port <port>      Metrics server port (default: 19191)
+  --help, -h             Show help
+  --                     Pass remaining flags to the underlying agent
+```
 
 ### Examples
 
 ```bash
-# Run a named command (resolves prompt from config)
-solito quality
-solito build
-solito hunt-bugs
+# Combine spec and guidance
+solito hunt-bugs --spec specs/api.md --prompt 'focus on auth module'
 
-# Hunt bugs with a spec file and/or guidance
-solito hunt-bugs --spec specs/api.md
-solito hunt-bugs --prompt 'focus on auth module'
-solito hunt-bugs --spec specs/api.md -p 'check error handling'
+# Choose agent, verbose output
+solito quality --agent=claude -v
 
-# Run with a raw prompt
-solito prompt 'refactor the auth module'
-
-# Specify agent explicitly
-solito quality --agent=claude
-
-# Use Codex
-solito quality -a codex
-
-# Verbose mode (show metadata)
-solito quality -v
-
-# Pass flags through to the underlying agent
+# Pass flags through to the underlying agent CLI
 solito quality -- --max-turns 5
 
-# Combine flags
-solito prompt -a claude -v 'refactor auth' -- --verbose
-
-# Show current config
-solito config
+# Inline prompt with generate-spec
+solito generate-spec 'Add new REST endpoint for user profiles'
 ```
+
+## Metrics Dashboard
+
+```bash
+# Terminal 1: Start dashboard
+solito ui
+solito ui --port 8080
+
+# Terminal 2: Run with metrics reporting
+solito quality --report-metrics
+```
+
+The dashboard displays real-time charts for coverage, complexity, linter issues, failed tests, and other metrics from each command's `log.tsv`. It auto-discovers TSV files from previous runs, deduplicates instances by project directory, and supports pagination.
+
+**UI options:**
+
+| Option           | Default   | Description                 |
+|------------------|-----------|-----------------------------|
+| `--host <host>`  | `0.0.0.0` | Dashboard bind address      |
+| `--port <port>`  | `19191`   | Dashboard port              |
 
 ## Configuration
 
-Solito reads its config from `$HOME/.solito/config.yaml`. On first run, a default config is created automatically.
+Solito creates `~/.solito/config.yaml` on first run. Project-level overrides go in `.solito/config.yaml` at the project root (deep-merged, project values take precedence).
 
 ```yaml
 default_agent: claude
+
 loop:
   max_turn_time_minutes: 15
+  continue_prompt: "Continue where you left off."
+  stale:
+    first_warning: 2    # stale iterations before first warning
+    second_warning: 2    # additional stale iterations before second warning
+    stop: 2              # additional stale iterations before auto-stop
+
 agents:
   claude:
     type: claude
-    # Optional: appended after the auto-generated autonomous agent prompt
-    append_system_prompt: |
-      Additional instructions here
-```
+    append_system_prompt: "Be concise."
 
-### Config Fields
-
-| Field | Description |
-|---|---|
-| `default_agent` | Agent to use when `--agent` is not specified |
-| `loop.max_turn_time_minutes` | Maximum time per loop iteration in minutes (enforced with process timeout) |
-| `agents.<name>.type` | Agent type (must match a registered agent) |
-| `agents.<name>.append_system_prompt` | Extra system prompt appended after the default autonomous agent prompt |
-| `commands.<name>.prompt` | Path to a prompt file (supports `${var:...}` and `${env:...}` interpolation) |
-| `commands.<name>.variables` | Variables available for interpolation in the prompt path and content |
-
-### Named Commands
-
-Define reusable commands in your config. When you run `solito <name>`, if `<name>` matches a key in `commands`, solito resolves the prompt file path, reads it, interpolates variables, and uses the result as the prompt.
-
-Custom command names must not conflict with built-in subcommands (`prompt`, `config`, `help`). Solito will throw an error if a conflict is detected.
-
-```yaml
 commands:
-  quality:
-    prompt: "${var:solito_root_dir}/prompts/quality.md"
+  my-command:
+    prompt: path/to/prompt.md
     variables:
-      thresholds:
-        min_coverage_pct_enhancement_per_loop: 0.5
-      max_loops_without_enhancement: 3
+      key: value
+    append_system_prompt: "Extra instructions."
 ```
 
-**Variable interpolation:**
+### Stale Iteration Detection
 
-- `${var:solito_root_dir}` - resolves to solito's installation directory
-- `${var:command_work_dir}` - resolves to `.solito/commands/<command-name>/` in the current directory (created automatically)
-- `${var:key}` - resolves from the command's `variables` config
-- `${var:nested.key}` - dot-path lookup in nested variables
-- `${env:HOME}` - resolves from environment variables
+Solito monitors metrics after each loop iteration. If no metric improves for consecutive iterations, a two-tier warning system activates:
 
-Variables are interpolated in both the prompt **path** and the file **content**.
+1. **First warning** (default: after 2 stale loops) -- instructs the agent to try radically different approaches and document what was tried in the progress file.
+2. **Second warning** (default: 2 more stale loops) -- escalated final warning before auto-stop.
+3. **Stop** (default: 2 more stale loops) -- halts the loop with an explanation.
 
-Built-in commands included by default: `quality`, `build`, and `hunt-bugs`.
+If the agent improves any metric after a warning, the stale check resets completely. Metrics where lower is better (complexity, lint issues, failed tests, etc.) are detected automatically.
+
+### Timeout Warnings
+
+Each iteration has a configurable time limit (`max_turn_time_minutes`). The agent receives staged warnings via stdin:
+
+- **Soft** at 5 minutes remaining -- asks agent to wrap up
+- **Urgent** at 2 minutes remaining -- demands immediate commit or rollback
+- **Kill** at the time limit -- force-kills and restarts for the next loop
+
+### Variable Interpolation
+
+Prompts support `${var:...}` and `${env:...}` tokens:
+
+| Variable                    | Description                                              |
+|-----------------------------|----------------------------------------------------------|
+| `${var:solito_root_dir}`    | Solito's installation directory                          |
+| `${var:command_work_dir}`   | `.solito/commands/<command>/` in the current project     |
+| `${var:key}`                | Value from the command's `variables` config              |
+| `${var:nested.key}`         | Dot-path lookup in nested variables                      |
+| `${env:HOME}`               | Environment variable                                     |
 
 ### Build Command
 
-The `build` command implements features from ordered spec files using test-driven development.
+Implements features from ordered spec files using test-driven development:
 
 ```bash
 solito build
 ```
 
-**Setup:**
-1. Create a `specs/` directory in your project root (configurable via `specs_dir` variable).
-2. Add ordered markdown spec files: `01-feature.md`, `02-feature.md`, etc.
-3. Run `solito build`.
-
-**Spec file format:**
-```markdown
-# Feature: User Authentication
-
-## Requirements
-- Users can register with email and password
-
-## Acceptance Criteria
-- POST /register with valid email/password returns 201 with user ID
-- POST /register with duplicate email returns 409
-
-## Constraints (optional)
-- Must not add external authentication libraries
-```
-
-The agent processes each spec in two phases: first it writes **all** failing tests covering every acceptance criterion (Phase 1), then implements the production code to make them pass one criterion at a time (Phase 2). Commits only happen when build passes, linter is clean, all tests pass, and coverage or complexity measurably improve. When all specs are complete, the agent terminates and suggests running `solito quality`. State (progress, metrics, logs) is persisted in `.solito/commands/build/`.
-
-**Variables:**
-| Variable | Default | Description |
-|---|---|---|
-| `specs_dir` | `specs` | Project-level directory containing spec files |
-| `max_consecutive_failures` | `5` | Rollbacks before marking a spec as blocked |
-| `thresholds.min_coverage_pct_enhancement_per_loop` | `0.5` | Minimum coverage increase per commit |
-| `max_loops_without_enhancement` | `3` | Consecutive no-improvement loops before switching approach |
+1. Create `specs/` directory with ordered markdown files (`01-feature.md`, `02-feature.md`, ...).
+2. The agent processes each spec in two phases: writes all failing tests (Phase 1), then implements code to pass them (Phase 2).
+3. Commits only when build passes, linter is clean, tests pass, and metrics improve.
 
 ### Hunt Bugs Command
-
-The `hunt-bugs` command autonomously scans the codebase for bugs, writes failing tests to prove them, and fixes them.
 
 ```bash
 solito hunt-bugs
 solito hunt-bugs --spec specs/api.md
-solito hunt-bugs --prompt 'focus on the auth module'
-solito hunt-bugs --spec specs/api.md -p 'check error handling'
+solito hunt-bugs --prompt 'focus on error handling'
+solito hunt-bugs --spec specs/api.md -p 'check auth module'
 ```
 
-**Options:**
+Scans code for bugs using multiple strategies, writes a failing test for each bug found, fixes it, and commits. Terminates after `max_loops_without_bugs` (default: 3) consecutive loops with no bugs found.
 
-| Option | Description |
-|---|---|
-| `--spec <path>` | Path to a spec file that describes how the app should work. The agent cross-references code against the spec to find deviations. |
-| `--prompt`, `-p` | Additional guidance to focus the agent on specific areas of the codebase. |
+## Adding Agents
 
-The agent scans code using multiple strategies (code analysis, test gap analysis, spec-driven analysis). For each bug found, it writes a failing test, fixes the bug, validates (build + lint + tests), and commits. When no new bugs are found in consecutive loops, the agent terminates.
-
-**Variables:**
-| Variable | Default | Description |
-|---|---|---|
-| `max_loops_without_bugs` | `3` | Consecutive loops finding no bugs before terminating |
-
-### Workspace Directory
-
-When running any command, solito automatically creates a `.solito/` directory in the current working directory with an empty `config.yaml` for project-level overrides. When running a named command, it also creates `.solito/commands/<command-name>/` as a persistent working directory for that command's state (metrics, logs, etc.).
-
-### Project Config
-
-Place a `.solito/config.yaml` file in your project directory to override global config per-project. Project config is deep-merged with global config (project values take precedence).
-
-```yaml
-# .solito/config.yaml in your project root
-default_agent: codex
-commands:
-  lint:
-    prompt: "./prompts/lint.md"
-```
-
-### Autonomous Agent Prompt
-
-When running the Claude agent, solito automatically generates a system prompt that:
-
-- Tells Claude it is an autonomous agent running in a loop
-- Specifies the maximum loop iteration duration (from `loop.max_turn_time_minutes`)
-- Instructs Claude to save relevant information to memory between iterations
-- Includes the user's task/prompt
-
-If `append_system_prompt` is set in the agent config, it is appended after the generated prompt.
-
-## Claude Agent Output
-
-The Claude agent uses `--output-format stream-json` to stream structured JSON from the Claude CLI. Output is parsed and formatted in real-time:
-
-- **Text content**: streamed directly to the terminal
-- **Tool usage**: displayed with tool name highlighted in cyan
-- **Tool input**: for known tools (Agent, Bash), parsed and shown with structured details; for other tools, shown as raw dim text
-- **Thinking**: shown in dim text
-- **Errors**: displayed in red
-- **Cost**: shown at the end of execution
-
-### Verbose Mode (`--verbose` / `-v`)
-
-When enabled, additional metadata is displayed in dim yellow:
-
-- **message_start**: message ID and model name
-- **message_delta**: stop reason and output token count
-- **result**: session ID, duration, API time, and total cost
-- **system messages**: system event type and message
+1. Implement the `Agent` interface in `src/agents/<name>.ts`
+2. Register with `registerAgent()` in `src/agents/registry.ts`
+3. Add an entry under `agents` in your `config.yaml`
 
 ## Development
 
 ```bash
-npm run dev -- quality           # Run without building
-npm run dev -- prompt 'fix bug'  # Run with raw prompt
-npm run build                    # Compile TypeScript
-npm test                         # Run tests
+npm install
+npm run build              # Compile TypeScript
+npm test                   # Run tests
+npm run dev -- quality     # Run without building
 ```
 
-## Project Structure
+## License
 
-```
-src/
-├── cli.ts                  # Entry point
-├── args.ts                 # Subcommand routing
-├── agents/
-│   ├── agent.ts            # Agent interface + AgentRunOptions
-│   ├── registry.ts         # Agent registry
-│   ├── claude.ts           # Claude agent (streaming JSON)
-│   ├── codex.ts            # Codex agent
-│   └── prompt-builder.ts   # Autonomous agent system prompt builder
-├── commands/
-│   ├── run-command.ts      # Run command handler
-│   ├── config-command.ts   # Config command handler
-│   └── command-resolver.ts # Named command resolution + prompt file loading
-├── config/
-│   ├── config.ts           # Config types + ConfigLoader interface
-│   ├── config-schema.ts    # Zod schema validation
-│   ├── config-merger.ts    # Project config merge logic
-│   ├── default-config.ts   # Default values + merge logic
-│   ├── project-config-loader.ts  # .solito/config.yaml project config loader
-│   └── yaml-config-loader.ts  # YAML file loader with validation
-├── interpolation/
-│   └── variable-resolver.ts  # ${var:...} and ${env:...} interpolation
-├── workspace/
-│   └── workspace-initializer.ts  # .solito/ dir + command work dir creation
-├── stream/
-│   ├── events.ts           # Claude CLI stream-json event types
-│   ├── parser.ts           # NDJSON line parser (with error logging)
-│   ├── formatter.ts        # Console stream formatter
-│   └── tool-formatter.ts   # Known tool input pretty-printing
-├── filesystem/
-│   ├── filesystem.ts       # FileSystem interface
-│   └── default-filesystem.ts  # Real fs implementation
-├── process/
-│   ├── spawner.ts          # ProcessSpawner interface
-│   ├── default-spawner.ts  # Real spawner implementation
-│   ├── streaming-spawner.ts     # StreamingProcessSpawner interface
-│   ├── default-streaming-spawner.ts  # Line-by-line streaming spawner
-│   └── output-buffer.ts    # Memory-limited output buffer
-├── test/                   # Shared test utilities
-│   ├── mock-agent.ts
-│   ├── mock-child-process.ts
-│   └── mock-filesystem.ts
-└── util/
-    ├── command.ts          # Command existence check
-    └── paths.ts            # Config path helpers
-```
+MIT

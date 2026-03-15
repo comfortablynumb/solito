@@ -16,6 +16,8 @@ import { DefaultVariableResolver } from "./interpolation/variable-resolver";
 import { HttpMetricsReporter } from "./metrics/metrics-reporter";
 import { TsvMetricsWatcher } from "./metrics/metrics-watcher";
 import { MetricsWatcher } from "./metrics/metrics-watcher";
+import { TsvStaleMetricsChecker } from "./metrics/stale-metrics-checker";
+import { DefaultTsvParser } from "./ui/tsv-parser";
 import { AgentConfig, SolitoConfig } from "./config/config";
 import { ConsoleLogger } from "./util/logger";
 import { RunCommand } from "./args";
@@ -122,6 +124,8 @@ async function handleRunCommand(
 
   const watcher = await setupMetricsWatcher(command, resolved.commandName, progressDir, cwd, logger);
 
+  const staleChecker = buildStaleChecker(progressDir, ctx.config, ctx.filesystem);
+
   try {
     return await executeRunCommand({
       agent,
@@ -131,6 +135,7 @@ async function handleRunCommand(
       passthrough: command.passthrough,
       progressDir,
       verbose: command.verbose,
+      staleChecker,
     });
   } finally {
     watcher?.stop();
@@ -281,6 +286,21 @@ async function buildDynamicBuiltIns(deps: DynamicBuiltInsDeps): Promise<Record<s
   }
 
   return builtIns;
+}
+
+function buildStaleChecker(
+  progressDir: string | undefined, config: SolitoConfig, filesystem: FileSystem,
+): TsvStaleMetricsChecker | undefined {
+  if (!progressDir || !config.loop.stale) {
+    return undefined;
+  }
+
+  return new TsvStaleMetricsChecker({
+    tsvPath: path.join(progressDir, "log.tsv"),
+    thresholds: config.loop.stale,
+    filesystem,
+    tsvParser: new DefaultTsvParser(),
+  });
 }
 
 function validateCommandNames(commands?: Record<string, unknown>): void {

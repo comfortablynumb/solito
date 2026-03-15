@@ -13,6 +13,7 @@ export function mergeProjectConfig(
         project.loop?.continue_prompt ?? global.loop.continue_prompt,
       timeout_prompt:
         project.loop?.timeout_prompt ?? global.loop.timeout_prompt,
+      stale: project.loop?.stale ?? global.loop.stale,
     },
     agents: {
       ...global.agents,

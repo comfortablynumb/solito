@@ -314,7 +314,7 @@ function buildStatusBadgeAndSummary(): string {
     };
     var upper = (status || '').toUpperCase();
     var cls = colors[upper] || 'bg-slate-700 text-slate-300';
-    return '<span class="px-1.5 py-0.5 rounded text-xs font-medium ' + cls + '">' + (status || '-') + '</span>';
+    return '<span class="px-1.5 py-0.5 rounded text-xs font-medium ' + cls + '">' + (upper || '-') + '</span>';
   }
 
   function formatMetricsSummary(m) {
@@ -574,7 +574,7 @@ function buildUpdateStatusAndHistory(): string {
     var statusEl = document.getElementById('inst-status-' + sid);
 
     if (statusEl) {
-      statusEl.textContent = latest.status || '-';
+      statusEl.textContent = (latest.status || '-').toUpperCase();
     }
 
     var source = dataMetrics.length > 0 ? dataMetrics : metrics;
