@@ -1,11 +1,11 @@
-# Solito
+# Solardi
 
 CLI that wraps AI agents (Claude, Codex, etc.) in a continuation loop with automatic progress tracking, timeout management, stale-detection, and a real-time metrics dashboard.
 
 ## Installation
 
 ```bash
-npm install -g solito
+npm install -g solardi
 ```
 
 Requires [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) or [Codex CLI](https://github.com/openai/codex) installed and available in PATH.
@@ -13,12 +13,12 @@ Requires [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) or [Codex C
 ## Quick Start
 
 ```bash
-solito quality                    # Improve test coverage and code quality
-solito build                      # Build features from spec files
-solito hunt-bugs                  # Find and fix bugs
-solito generate-spec 'Add /api/users endpoint'
-solito prompt 'refactor the auth module'
-solito config                     # View effective configuration
+solardi quality                    # Improve test coverage and code quality
+solardi build                      # Build features from spec files
+solardi hunt-bugs                  # Find and fix bugs
+solardi generate-spec 'Add /api/users endpoint'
+solardi prompt 'refactor the auth module'
+solardi config                     # View effective configuration
 ```
 
 ## Built-in Commands
@@ -33,7 +33,7 @@ solito config                     # View effective configuration
 ## CLI Usage
 
 ```
-solito <command> [options]
+solardi <command> [options]
 
 Subcommands:
   <command-name>               Run a named command (built-in or custom)
@@ -58,27 +58,27 @@ Options:
 
 ```bash
 # Combine spec and guidance
-solito hunt-bugs --spec specs/api.md --prompt 'focus on auth module'
+solardi hunt-bugs --spec specs/api.md --prompt 'focus on auth module'
 
 # Choose agent, verbose output
-solito quality --agent=claude -v
+solardi quality --agent=claude -v
 
 # Pass flags through to the underlying agent CLI
-solito quality -- --max-turns 5
+solardi quality -- --max-turns 5
 
 # Inline prompt with generate-spec
-solito generate-spec 'Add new REST endpoint for user profiles'
+solardi generate-spec 'Add new REST endpoint for user profiles'
 ```
 
 ## Metrics Dashboard
 
 ```bash
 # Terminal 1: Start dashboard
-solito ui
-solito ui --port 8080
+solardi ui
+solardi ui --port 8080
 
 # Terminal 2: Run with metrics reporting
-solito quality --report-metrics
+solardi quality --report-metrics
 ```
 
 The dashboard displays real-time charts for coverage, complexity, linter issues, failed tests, and other metrics from each command's `log.tsv`. It auto-discovers TSV files from previous runs, deduplicates instances by project directory, and supports pagination.
@@ -92,7 +92,7 @@ The dashboard displays real-time charts for coverage, complexity, linter issues,
 
 ## Configuration
 
-Solito creates `~/.solito/config.yaml` on first run. Project-level overrides go in `.solito/config.yaml` at the project root (deep-merged, project values take precedence).
+Solardi creates `~/.solardi/config.yaml` on first run. Project-level overrides go in `.solardi/config.yaml` at the project root (deep-merged, project values take precedence).
 
 ```yaml
 default_agent: claude
@@ -120,7 +120,7 @@ commands:
 
 ### Stale Iteration Detection
 
-Solito monitors metrics after each loop iteration. If no metric improves for consecutive iterations, a two-tier warning system activates:
+Solardi monitors metrics after each loop iteration. If no metric improves for consecutive iterations, a two-tier warning system activates:
 
 1. **First warning** (default: after 2 stale loops) -- instructs the agent to try radically different approaches and document what was tried in the progress file.
 2. **Second warning** (default: 2 more stale loops) -- escalated final warning before auto-stop.
@@ -142,8 +142,8 @@ Prompts support `${var:...}` and `${env:...}` tokens:
 
 | Variable                    | Description                                              |
 |-----------------------------|----------------------------------------------------------|
-| `${var:solito_root_dir}`    | Solito's installation directory                          |
-| `${var:command_work_dir}`   | `.solito/commands/<command>/` in the current project     |
+| `${var:solardi_root_dir}`    | Solardi's installation directory                          |
+| `${var:command_work_dir}`   | `.solardi/commands/<command>/` in the current project     |
 | `${var:key}`                | Value from the command's `variables` config              |
 | `${var:nested.key}`         | Dot-path lookup in nested variables                      |
 | `${env:HOME}`               | Environment variable                                     |
@@ -153,7 +153,7 @@ Prompts support `${var:...}` and `${env:...}` tokens:
 Implements features from ordered spec files using test-driven development:
 
 ```bash
-solito build
+solardi build
 ```
 
 1. Create `specs/` directory with ordered markdown files (`01-feature.md`, `02-feature.md`, ...).
@@ -163,10 +163,10 @@ solito build
 ### Hunt Bugs Command
 
 ```bash
-solito hunt-bugs
-solito hunt-bugs --spec specs/api.md
-solito hunt-bugs --prompt 'focus on error handling'
-solito hunt-bugs --spec specs/api.md -p 'check auth module'
+solardi hunt-bugs
+solardi hunt-bugs --spec specs/api.md
+solardi hunt-bugs --prompt 'focus on error handling'
+solardi hunt-bugs --spec specs/api.md -p 'check auth module'
 ```
 
 Scans code for bugs using multiple strategies, writes a failing test for each bug found, fixes it, and commits. Terminates after `max_loops_without_bugs` (default: 3) consecutive loops with no bugs found.

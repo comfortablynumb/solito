@@ -1,13 +1,13 @@
 import * as path from "path";
 import { parse } from "yaml";
-import { SolitoConfig } from "./config";
+import { SolardiConfig } from "./config";
 import { FileSystem } from "../filesystem/filesystem";
 
-const PROJECT_CONFIG_DIR = ".solito";
+const PROJECT_CONFIG_DIR = ".solardi";
 const PROJECT_CONFIG_FILE = "config.yaml";
 
 export interface ProjectConfigLoader {
-  load(): Promise<Partial<SolitoConfig> | null>;
+  load(): Promise<Partial<SolardiConfig> | null>;
 }
 
 export interface ProjectConfigLoaderDeps {
@@ -24,7 +24,7 @@ export class DefaultProjectConfigLoader implements ProjectConfigLoader {
     this.configPath = path.join(cwd, PROJECT_CONFIG_DIR, PROJECT_CONFIG_FILE);
   }
 
-  async load(): Promise<Partial<SolitoConfig> | null> {
+  async load(): Promise<Partial<SolardiConfig> | null> {
     const exists = await this.filesystem.exists(this.configPath);
 
     if (!exists) {
@@ -32,6 +32,6 @@ export class DefaultProjectConfigLoader implements ProjectConfigLoader {
     }
 
     const content = await this.filesystem.readFile(this.configPath);
-    return parse(content) as Partial<SolitoConfig>;
+    return parse(content) as Partial<SolardiConfig>;
   }
 }

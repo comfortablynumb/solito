@@ -39,7 +39,7 @@ export class UiServer implements HttpServer {
       });
 
       this.server.listen(this.port, this.host, () => {
-        this.logger.info(`Solito UI running at http://${this.host}:${this.port}`);
+        this.logger.info(`Solardi UI running at http://${this.host}:${this.port}`);
         resolve();
       });
     });

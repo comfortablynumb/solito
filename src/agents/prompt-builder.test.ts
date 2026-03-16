@@ -36,10 +36,10 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt({
       userPrompt: "do stuff",
       loopMaxMinutes: 5,
-      progressFilePath: "/home/user/.solito/loop-progress.md",
+      progressFilePath: "/home/user/.solardi/loop-progress.md",
     });
 
-    expect(prompt).toContain("/home/user/.solito/loop-progress.md");
+    expect(prompt).toContain("/home/user/.solardi/loop-progress.md");
     expect(prompt).toContain("progress summary");
     expect(prompt).toContain("CRITICAL");
     expect(prompt).toContain("What you have accomplished");
@@ -197,11 +197,11 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt({
       userPrompt: "do stuff",
       loopMaxMinutes: 5,
-      workDir: "/project/.solito/commands/quality",
+      workDir: "/project/.solardi/commands/quality",
     });
 
     expect(prompt).toContain("TEMPORARY FILES");
-    expect(prompt).toContain("/project/.solito/commands/quality");
+    expect(prompt).toContain("/project/.solardi/commands/quality");
     expect(prompt).toContain("NEVER create temporary files in the project root");
   });
 
@@ -209,11 +209,11 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt({
       userPrompt: "do stuff",
       loopMaxMinutes: 5,
-      workDir: "/project/.solito/commands/quality",
+      workDir: "/project/.solardi/commands/quality",
     });
 
     expect(prompt).toContain("METRICS LOG UPDATE");
-    expect(prompt).toContain("/project/.solito/commands/quality/log.tsv");
+    expect(prompt).toContain("/project/.solardi/commands/quality/log.tsv");
     expect(prompt).toContain("dashboard");
   });
 

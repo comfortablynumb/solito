@@ -1,7 +1,7 @@
 import { mergeProjectConfig } from "./config-merger";
-import { SolitoConfig } from "./config";
+import { SolardiConfig } from "./config";
 
-function createBaseConfig(): SolitoConfig {
+function createBaseConfig(): SolardiConfig {
   return {
     default_agent: "claude",
     loop: {

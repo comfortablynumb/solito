@@ -7,16 +7,16 @@ export interface VariableResolver {
 }
 
 export interface VariableResolverOptions {
-  solitoRootDir?: string;
+  solardiRootDir?: string;
   builtIns?: Record<string, string>;
 }
 
 export class DefaultVariableResolver implements VariableResolver {
-  private readonly solitoRootDir: string;
+  private readonly solardiRootDir: string;
   private readonly builtIns: Record<string, string>;
 
   constructor(options?: VariableResolverOptions) {
-    this.solitoRootDir = options?.solitoRootDir ?? findSolitoRootDir();
+    this.solardiRootDir = options?.solardiRootDir ?? findSolardiRootDir();
     this.builtIns = options?.builtIns ?? {};
   }
 
@@ -35,8 +35,8 @@ export class DefaultVariableResolver implements VariableResolver {
     variables: CommandVariables | undefined,
     fallback: string,
   ): string {
-    if (key === "solito_root_dir") {
-      return this.solitoRootDir;
+    if (key === "solardi_root_dir") {
+      return this.solardiRootDir;
     }
 
     if (this.builtIns[key] !== undefined) {
@@ -91,7 +91,7 @@ export function getNestedValue(
   return current;
 }
 
-function findSolitoRootDir(): string {
+function findSolardiRootDir(): string {
   let dir = __dirname;
 
   while (true) {
@@ -101,7 +101,7 @@ function findSolitoRootDir(): string {
       try {
         const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 
-        if (pkg.name === "solito") {
+        if (pkg.name === "solardi") {
           return dir;
         }
       } catch {

@@ -18,7 +18,7 @@ import { TsvMetricsWatcher } from "./metrics/metrics-watcher";
 import { MetricsWatcher } from "./metrics/metrics-watcher";
 import { TsvStaleMetricsChecker } from "./metrics/stale-metrics-checker";
 import { DefaultTsvParser } from "./ui/tsv-parser";
-import { AgentConfig, SolitoConfig } from "./config/config";
+import { AgentConfig, SolardiConfig } from "./config/config";
 import { ConsoleLogger } from "./util/logger";
 import { RunCommand } from "./args";
 import { randomUUID } from "crypto";
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
 }
 
 interface RunCommandContext {
-  config: SolitoConfig;
+  config: SolardiConfig;
   workspace: DefaultWorkspaceInitializer;
   commandResolver: DefaultCommandResolver;
   filesystem: FileSystem;
@@ -110,7 +110,7 @@ async function handleRunCommand(
     : await ctx.commandResolver.resolve(command.prompt);
 
   if (!command.rawPrompt && !resolved.isCommand) {
-    console.error(`Error: unknown command "${command.prompt}". Use "solito prompt '<your prompt>'" for raw prompts.`);
+    console.error(`Error: unknown command "${command.prompt}". Use "solardi prompt '<your prompt>'" for raw prompts.`);
     printUsage();
     return 1;
   }
@@ -207,7 +207,7 @@ async function setupMetricsWatcher(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(`Metrics server not reachable: ${message}`);
-    logger.error("Start the dashboard with 'solito ui' before using --report-metrics.");
+    logger.error("Start the dashboard with 'solardi ui' before using --report-metrics.");
     process.exit(1);
   }
 
@@ -242,7 +242,7 @@ async function setupMetricsWatcher(
 }
 
 function buildAgentConfig(
-  config: SolitoConfig,
+  config: SolardiConfig,
   agentName: string,
   commandName?: string,
 ): AgentConfig {
@@ -289,7 +289,7 @@ async function buildDynamicBuiltIns(deps: DynamicBuiltInsDeps): Promise<Record<s
 }
 
 function buildStaleChecker(
-  progressDir: string | undefined, config: SolitoConfig, filesystem: FileSystem,
+  progressDir: string | undefined, config: SolardiConfig, filesystem: FileSystem,
 ): TsvStaleMetricsChecker | undefined {
   if (!progressDir || !config.loop.stale) {
     return undefined;

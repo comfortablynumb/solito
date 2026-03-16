@@ -32,12 +32,12 @@ describe("TsvMetricsWatcher", () => {
 
   it("reports existing TSV rows immediately on start", async () => {
     const tsv = "loop\tstatus\tcoverage_percent\n1\tSUCCESS\t50\n2\tSUCCESS\t60";
-    const filesystem = createMockFileSystem({ "/project/.solito/commands/quality/log.tsv": tsv });
+    const filesystem = createMockFileSystem({ "/project/.solardi/commands/quality/log.tsv": tsv });
     const reporter = createMockReporter();
     const logger = createMockLogger();
 
     const watcher = new TsvMetricsWatcher({
-      tsvPath: "/project/.solito/commands/quality/log.tsv",
+      tsvPath: "/project/.solardi/commands/quality/log.tsv",
       instanceId: "test-instance-abc",
       command: "quality",
       project: "/project",
@@ -63,12 +63,12 @@ describe("TsvMetricsWatcher", () => {
 
   it("does not re-report existing rows on next interval", async () => {
     const tsv = "loop\tstatus\tcoverage_percent\n1\tSUCCESS\t50";
-    const filesystem = createMockFileSystem({ "/project/.solito/commands/quality/log.tsv": tsv });
+    const filesystem = createMockFileSystem({ "/project/.solardi/commands/quality/log.tsv": tsv });
     const reporter = createMockReporter();
     const logger = createMockLogger();
 
     const watcher = new TsvMetricsWatcher({
-      tsvPath: "/project/.solito/commands/quality/log.tsv",
+      tsvPath: "/project/.solardi/commands/quality/log.tsv",
       instanceId: "test-instance",
       command: "quality",
       project: "/project",
@@ -94,12 +94,12 @@ describe("TsvMetricsWatcher", () => {
 
   it("reports only new rows on subsequent polls", async () => {
     const tsv = "loop\tstatus\tcoverage_percent\n1\tSUCCESS\t50";
-    const filesystem = createMockFileSystem({ "/project/.solito/commands/quality/log.tsv": tsv });
+    const filesystem = createMockFileSystem({ "/project/.solardi/commands/quality/log.tsv": tsv });
     const reporter = createMockReporter();
     const logger = createMockLogger();
 
     const watcher = new TsvMetricsWatcher({
-      tsvPath: "/project/.solito/commands/quality/log.tsv",
+      tsvPath: "/project/.solardi/commands/quality/log.tsv",
       instanceId: "test-instance",
       command: "quality",
       project: "/project",
@@ -116,7 +116,7 @@ describe("TsvMetricsWatcher", () => {
 
     // Simulate new row added to TSV
     await filesystem.writeFile(
-      "/project/.solito/commands/quality/log.tsv",
+      "/project/.solardi/commands/quality/log.tsv",
       "loop\tstatus\tcoverage_percent\n1\tSUCCESS\t50\n2\tSUCCESS\t65",
     );
 
@@ -135,7 +135,7 @@ describe("TsvMetricsWatcher", () => {
     const logger = createMockLogger();
 
     const watcher = new TsvMetricsWatcher({
-      tsvPath: "/project/.solito/commands/quality/log.tsv",
+      tsvPath: "/project/.solardi/commands/quality/log.tsv",
       instanceId: "test-instance",
       command: "quality",
       project: "/project",

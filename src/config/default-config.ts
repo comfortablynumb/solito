@@ -1,11 +1,11 @@
-import { SolitoConfig } from "./config";
+import { SolardiConfig } from "./config";
 
 export function listBuiltInCommandNames(): string[] {
   const defaults = createDefaultConfig();
   return Object.keys(defaults.commands!);
 }
 
-export function createDefaultConfig(): SolitoConfig {
+export function createDefaultConfig(): SolardiConfig {
   return {
     default_agent: "claude",
     loop: {
@@ -25,7 +25,7 @@ export function createDefaultConfig(): SolitoConfig {
     },
     commands: {
       quality: {
-        prompt: "${var:solito_root_dir}/prompts/quality.md",
+        prompt: "${var:solardi_root_dir}/prompts/quality.md",
         variables: {
           thresholds: {
             min_coverage_pct_enhancement_per_loop: 0.5,
@@ -35,7 +35,7 @@ export function createDefaultConfig(): SolitoConfig {
         },
       },
       build: {
-        prompt: "${var:solito_root_dir}/prompts/build.md",
+        prompt: "${var:solardi_root_dir}/prompts/build.md",
         variables: {
           specs_dir: "specs",
           max_consecutive_failures: 5,
@@ -47,19 +47,19 @@ export function createDefaultConfig(): SolitoConfig {
         },
       },
       "hunt-bugs": {
-        prompt: "${var:solito_root_dir}/prompts/hunt-bugs.md",
+        prompt: "${var:solardi_root_dir}/prompts/hunt-bugs.md",
         variables: {
           max_loops_without_bugs: 3,
         },
       },
       "generate-spec": {
-        prompt: "${var:solito_root_dir}/prompts/generate-spec.md",
+        prompt: "${var:solardi_root_dir}/prompts/generate-spec.md",
       },
     },
   };
 }
 
-export function mergeWithDefaults(partial: Partial<SolitoConfig>): SolitoConfig {
+export function mergeWithDefaults(partial: Partial<SolardiConfig>): SolardiConfig {
   const defaults = createDefaultConfig();
 
   return {

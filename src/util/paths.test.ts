@@ -2,10 +2,10 @@ import * as path from "path";
 import { getConfigDir, getConfigFilePath } from "./paths";
 
 describe("getConfigDir", () => {
-  it("returns .solito under provided home dir", () => {
+  it("returns .solardi under provided home dir", () => {
     const result = getConfigDir("/home/user");
 
-    expect(result).toBe(path.join("/home/user", ".solito"));
+    expect(result).toBe(path.join("/home/user", ".solardi"));
   });
 
   it("falls back to HOME env var when homeDir is not provided", () => {
@@ -14,7 +14,7 @@ describe("getConfigDir", () => {
 
     try {
       const result = getConfigDir();
-      expect(result).toBe(path.join("/fallback/home", ".solito"));
+      expect(result).toBe(path.join("/fallback/home", ".solardi"));
     } finally {
       process.env.HOME = originalHome;
     }
@@ -28,7 +28,7 @@ describe("getConfigDir", () => {
 
     try {
       const result = getConfigDir();
-      expect(result).toBe(path.join("/user/profile", ".solito"));
+      expect(result).toBe(path.join("/user/profile", ".solardi"));
     } finally {
       process.env.HOME = originalHome;
       process.env.USERPROFILE = originalUserProfile;
@@ -66,8 +66,8 @@ describe("getConfigDir", () => {
 
 describe("getConfigFilePath", () => {
   it("returns config.yaml under config dir", () => {
-    const result = getConfigFilePath("/home/user/.solito");
+    const result = getConfigFilePath("/home/user/.solardi");
 
-    expect(result).toBe(path.join("/home/user/.solito", "config.yaml"));
+    expect(result).toBe(path.join("/home/user/.solardi", "config.yaml"));
   });
 });

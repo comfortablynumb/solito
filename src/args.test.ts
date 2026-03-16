@@ -13,7 +13,7 @@ describe("parseArgs", () => {
 
   describe("command name (first arg)", () => {
     it("parses command name as prompt", () => {
-      const result = parseArgs(["node", "solito", "quality"]);
+      const result = parseArgs(["node", "solardi", "quality"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "quality",
         rawPrompt: false, verbose: false, passthrough: [],
@@ -22,7 +22,7 @@ describe("parseArgs", () => {
     });
 
     it("parses command name with --agent flag", () => {
-      const result = parseArgs(["node", "solito", "--agent", "codex", "quality"]);
+      const result = parseArgs(["node", "solardi", "--agent", "codex", "quality"]);
       expect(result).toEqual({
         kind: "run", agentName: "codex", prompt: "quality",
         rawPrompt: false, verbose: false, passthrough: [],
@@ -31,7 +31,7 @@ describe("parseArgs", () => {
     });
 
     it("parses command name with --agent=value syntax", () => {
-      const result = parseArgs(["node", "solito", "--agent=codex", "quality"]);
+      const result = parseArgs(["node", "solardi", "--agent=codex", "quality"]);
       expect(result).toEqual({
         kind: "run", agentName: "codex", prompt: "quality",
         rawPrompt: false, verbose: false, passthrough: [],
@@ -40,7 +40,7 @@ describe("parseArgs", () => {
     });
 
     it("parses command name with -a shorthand", () => {
-      const result = parseArgs(["node", "solito", "-a", "codex", "quality"]);
+      const result = parseArgs(["node", "solardi", "-a", "codex", "quality"]);
       expect(result).toEqual({
         kind: "run", agentName: "codex", prompt: "quality",
         rawPrompt: false, verbose: false, passthrough: [],
@@ -51,7 +51,7 @@ describe("parseArgs", () => {
 
   describe("verbose flag", () => {
     it("parses --verbose", () => {
-      const result = parseArgs(["node", "solito", "--verbose", "quality"]);
+      const result = parseArgs(["node", "solardi", "--verbose", "quality"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "quality",
         rawPrompt: false, verbose: true, passthrough: [],
@@ -60,7 +60,7 @@ describe("parseArgs", () => {
     });
 
     it("parses -v shorthand", () => {
-      const result = parseArgs(["node", "solito", "-v", "quality"]);
+      const result = parseArgs(["node", "solardi", "-v", "quality"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "quality",
         rawPrompt: false, verbose: true, passthrough: [],
@@ -72,7 +72,7 @@ describe("parseArgs", () => {
   describe("passthrough args (--)", () => {
     it("captures args after -- as passthrough", () => {
       const result = parseArgs([
-        "node", "solito", "quality", "--", "--max-turns", "5",
+        "node", "solardi", "quality", "--", "--max-turns", "5",
       ]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "quality",
@@ -83,7 +83,7 @@ describe("parseArgs", () => {
 
     it("works with other flags before --", () => {
       const result = parseArgs([
-        "node", "solito", "-a", "claude", "quality", "--", "--verbose",
+        "node", "solardi", "-a", "claude", "quality", "--", "--verbose",
       ]);
       expect(result).toEqual({
         kind: "run", agentName: "claude", prompt: "quality",
@@ -93,7 +93,7 @@ describe("parseArgs", () => {
     });
 
     it("returns empty passthrough when no -- present", () => {
-      const result = parseArgs(["node", "solito", "quality"]);
+      const result = parseArgs(["node", "solardi", "quality"]);
 
       if (result.kind === "run") {
         expect(result.passthrough).toEqual([]);
@@ -103,7 +103,7 @@ describe("parseArgs", () => {
 
   describe("prompt command", () => {
     it("parses 'prompt' subcommand with raw prompt", () => {
-      const result = parseArgs(["node", "solito", "prompt", "fix the bug"]);
+      const result = parseArgs(["node", "solardi", "prompt", "fix the bug"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "fix the bug",
         rawPrompt: true, verbose: false, passthrough: [],
@@ -112,7 +112,7 @@ describe("parseArgs", () => {
     });
 
     it("never resolves as a named command", () => {
-      const result = parseArgs(["node", "solito", "prompt", "quality"]);
+      const result = parseArgs(["node", "solardi", "prompt", "quality"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "quality",
         rawPrompt: true, verbose: false, passthrough: [],
@@ -121,7 +121,7 @@ describe("parseArgs", () => {
     });
 
     it("supports --agent flag", () => {
-      const result = parseArgs(["node", "solito", "prompt", "-a", "codex", "do stuff"]);
+      const result = parseArgs(["node", "solardi", "prompt", "-a", "codex", "do stuff"]);
       expect(result).toEqual({
         kind: "run", agentName: "codex", prompt: "do stuff",
         rawPrompt: true, verbose: false, passthrough: [],
@@ -131,7 +131,7 @@ describe("parseArgs", () => {
 
     it("supports passthrough args", () => {
       const result = parseArgs([
-        "node", "solito", "prompt", "do stuff", "--", "--max-turns", "3",
+        "node", "solardi", "prompt", "do stuff", "--", "--max-turns", "3",
       ]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "do stuff",
@@ -141,7 +141,7 @@ describe("parseArgs", () => {
     });
 
     it("joins multiple positional args as prompt", () => {
-      const result = parseArgs(["node", "solito", "prompt", "fix", "the", "bug"]);
+      const result = parseArgs(["node", "solardi", "prompt", "fix", "the", "bug"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "fix the bug",
         rawPrompt: true, verbose: false, passthrough: [],
@@ -150,13 +150,13 @@ describe("parseArgs", () => {
     });
 
     it("returns help when prompt has no argument", () => {
-      expect(parseArgs(["node", "solito", "prompt"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi", "prompt"])).toEqual({ kind: "help" });
     });
   });
 
   describe("--spec flag", () => {
     it("parses --spec with value", () => {
-      const result = parseArgs(["node", "solito", "hunt-bugs", "--spec", "specs/api.md"]);
+      const result = parseArgs(["node", "solardi", "hunt-bugs", "--spec", "specs/api.md"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "hunt-bugs",
         rawPrompt: false, verbose: false, spec: "specs/api.md",
@@ -166,7 +166,7 @@ describe("parseArgs", () => {
     });
 
     it("parses --spec=value syntax", () => {
-      const result = parseArgs(["node", "solito", "hunt-bugs", "--spec=specs/api.md"]);
+      const result = parseArgs(["node", "solardi", "hunt-bugs", "--spec=specs/api.md"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "hunt-bugs",
         rawPrompt: false, verbose: false, spec: "specs/api.md",
@@ -178,7 +178,7 @@ describe("parseArgs", () => {
 
   describe("--prompt flag", () => {
     it("parses --prompt with value", () => {
-      const result = parseArgs(["node", "solito", "hunt-bugs", "--prompt", "focus on auth"]);
+      const result = parseArgs(["node", "solardi", "hunt-bugs", "--prompt", "focus on auth"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "hunt-bugs",
         rawPrompt: false, verbose: false, spec: undefined,
@@ -188,7 +188,7 @@ describe("parseArgs", () => {
     });
 
     it("parses -p shorthand", () => {
-      const result = parseArgs(["node", "solito", "hunt-bugs", "-p", "focus on auth"]);
+      const result = parseArgs(["node", "solardi", "hunt-bugs", "-p", "focus on auth"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "hunt-bugs",
         rawPrompt: false, verbose: false, spec: undefined,
@@ -198,7 +198,7 @@ describe("parseArgs", () => {
     });
 
     it("parses --prompt=value syntax", () => {
-      const result = parseArgs(["node", "solito", "hunt-bugs", "--prompt=focus on auth"]);
+      const result = parseArgs(["node", "solardi", "hunt-bugs", "--prompt=focus on auth"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "hunt-bugs",
         rawPrompt: false, verbose: false, spec: undefined,
@@ -209,7 +209,7 @@ describe("parseArgs", () => {
 
     it("combines --spec and --prompt", () => {
       const result = parseArgs([
-        "node", "solito", "hunt-bugs", "--spec", "specs/api.md", "--prompt", "check auth",
+        "node", "solardi", "hunt-bugs", "--spec", "specs/api.md", "--prompt", "check auth",
       ]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "hunt-bugs",
@@ -222,7 +222,7 @@ describe("parseArgs", () => {
 
   describe("--report-metrics flag", () => {
     it("parses --report-metrics", () => {
-      const result = parseArgs(["node", "solito", "quality", "--report-metrics"]);
+      const result = parseArgs(["node", "solardi", "quality", "--report-metrics"]);
       expect(result).toEqual({
         kind: "run", agentName: undefined, prompt: "quality",
         rawPrompt: false, verbose: false, passthrough: [],
@@ -232,7 +232,7 @@ describe("parseArgs", () => {
 
     it("parses --api-host and --api-port", () => {
       const result = parseArgs([
-        "node", "solito", "quality", "--report-metrics",
+        "node", "solardi", "quality", "--report-metrics",
         "--api-host", "192.168.1.1", "--api-port", "8080",
       ]);
 
@@ -246,66 +246,66 @@ describe("parseArgs", () => {
 
   describe("ui command", () => {
     it("parses 'ui' subcommand with defaults", () => {
-      const result = parseArgs(["node", "solito", "ui"]);
+      const result = parseArgs(["node", "solardi", "ui"]);
       expect(result).toEqual({ kind: "ui", host: "0.0.0.0", port: 19191 });
     });
 
     it("parses --host and --port flags", () => {
-      const result = parseArgs(["node", "solito", "ui", "--host", "127.0.0.1", "--port", "8080"]);
+      const result = parseArgs(["node", "solardi", "ui", "--host", "127.0.0.1", "--port", "8080"]);
       expect(result).toEqual({ kind: "ui", host: "127.0.0.1", port: 8080 });
     });
 
     it("parses --host=value and --port=value syntax", () => {
-      const result = parseArgs(["node", "solito", "ui", "--host=localhost", "--port=3000"]);
+      const result = parseArgs(["node", "solardi", "ui", "--host=localhost", "--port=3000"]);
       expect(result).toEqual({ kind: "ui", host: "localhost", port: 3000 });
     });
 
     it("returns help for ui --help", () => {
-      expect(parseArgs(["node", "solito", "ui", "--help"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi", "ui", "--help"])).toEqual({ kind: "help" });
     });
 
     it("returns help for ui -h", () => {
-      expect(parseArgs(["node", "solito", "ui", "-h"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi", "ui", "-h"])).toEqual({ kind: "help" });
     });
   });
 
   describe("config command", () => {
     it("parses 'config' subcommand", () => {
-      expect(parseArgs(["node", "solito", "config"])).toEqual({ kind: "config" });
+      expect(parseArgs(["node", "solardi", "config"])).toEqual({ kind: "config" });
     });
   });
 
   describe("help", () => {
     it("returns help when no args", () => {
-      expect(parseArgs(["node", "solito"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi"])).toEqual({ kind: "help" });
     });
 
     it("returns help for --help flag", () => {
-      expect(parseArgs(["node", "solito", "--help"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi", "--help"])).toEqual({ kind: "help" });
     });
 
     it("returns help for -h flag", () => {
-      expect(parseArgs(["node", "solito", "-h"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi", "-h"])).toEqual({ kind: "help" });
     });
 
     it("returns help for 'help' subcommand", () => {
-      expect(parseArgs(["node", "solito", "help"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi", "help"])).toEqual({ kind: "help" });
     });
 
     it("returns help when no command name provided with flags only", () => {
-      expect(parseArgs(["node", "solito", "-v"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi", "-v"])).toEqual({ kind: "help" });
     });
 
     it("returns help for unknown flags in run mode", () => {
-      expect(parseArgs(["node", "solito", "quality", "--unknown-flag"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi", "quality", "--unknown-flag"])).toEqual({ kind: "help" });
     });
 
     it("returns help for --help within prompt subcommand", () => {
-      expect(parseArgs(["node", "solito", "prompt", "--help", "some text"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi", "prompt", "--help", "some text"])).toEqual({ kind: "help" });
     });
 
     it("returns help for -h within prompt subcommand", () => {
-      expect(parseArgs(["node", "solito", "prompt", "-h"])).toEqual({ kind: "help" });
+      expect(parseArgs(["node", "solardi", "prompt", "-h"])).toEqual({ kind: "help" });
     });
   });
 });
@@ -317,7 +317,7 @@ describe("printUsage", () => {
 
     expect(spy).toHaveBeenCalled();
     const output = spy.mock.calls.map((c) => c[0]).join("\n");
-    expect(output).toContain("Usage: solito");
+    expect(output).toContain("Usage: solardi");
     expect(output).toContain("quality");
     expect(output).toContain("--agent");
     expect(output).toContain("--verbose");
@@ -342,7 +342,7 @@ describe("flag missing value", () => {
     });
     const errorSpy = jest.spyOn(console, "error").mockImplementation();
 
-    expect(() => parseArgs(["node", "solito", "--agent"])).toThrow("process.exit");
+    expect(() => parseArgs(["node", "solardi", "--agent"])).toThrow("process.exit");
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("--agent requires a value"));
     expect(exitSpy).toHaveBeenCalledWith(1);
 

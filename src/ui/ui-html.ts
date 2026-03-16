@@ -8,7 +8,7 @@ export function buildDashboardHtml(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Solito Dashboard</title>
+  <title>Solardi Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -33,7 +33,7 @@ export function buildDashboardHtml(): string {
 </head>
 <body class="min-h-screen">
   <nav id="top-bar" class="sticky top-0 z-10 bg-slate-900 border-b border-slate-700 px-6 py-3 flex items-center gap-3 overflow-x-auto">
-    <h1 class="text-lg font-bold text-white whitespace-nowrap mr-2">Solito</h1>
+    <h1 class="text-lg font-bold text-white whitespace-nowrap mr-2">Solardi</h1>
     <div id="nav-buttons" class="flex gap-2"></div>
     <div class="ml-auto flex items-center gap-4 whitespace-nowrap">
       <span class="text-sm text-slate-400" id="instance-count">0 active instances</span>

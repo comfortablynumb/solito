@@ -81,14 +81,14 @@ describe("formatToolInput", () => {
   describe("Read tool", () => {
     it("formats read with file path", () => {
       const json = JSON.stringify({
-        file_path: "D:\\Development\\Typescript\\solito\\tsconfig.json",
+        file_path: "D:\\Development\\Typescript\\solardi\\tsconfig.json",
       });
 
       const result = formatToolInput("Read", json);
 
       expect(result).toEqual({
         label: "Read",
-        details: ["D:\\Development\\Typescript\\solito\\tsconfig.json"],
+        details: ["D:\\Development\\Typescript\\solardi\\tsconfig.json"],
       });
     });
 
@@ -103,7 +103,7 @@ describe("formatToolInput", () => {
     it("formats glob with pattern and path", () => {
       const json = JSON.stringify({
         pattern: "src/**/*.ts",
-        path: "D:\\Development\\Typescript\\solito",
+        path: "D:\\Development\\Typescript\\solardi",
       });
 
       const result = formatToolInput("Glob", json);
@@ -112,7 +112,7 @@ describe("formatToolInput", () => {
         label: "Glob",
         details: [
           "src/**/*.ts",
-          "in D:\\Development\\Typescript\\solito",
+          "in D:\\Development\\Typescript\\solardi",
         ],
       });
     });

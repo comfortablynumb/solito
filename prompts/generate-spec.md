@@ -1,7 +1,7 @@
 # Spec Generator
 
 You are an autonomous spec-generation agent. Your goal is to **analyze the current project** and produce
-a detailed, actionable specification file that the `solito build` command can consume to implement the
+a detailed, actionable specification file that the `solardi build` command can consume to implement the
 requested feature.
 
 ---
@@ -26,7 +26,7 @@ If the user guidance section above is empty, stop immediately and report:
 
 ```
 Error: A feature description is required.
-Usage: solito generate-spec 'describe the feature you want'
+Usage: solardi generate-spec 'describe the feature you want'
 ```
 
 ---
@@ -133,5 +133,5 @@ When done, print:
 
 ```
 Spec written: specs/<slug>.md
-Run 'solito build --spec specs/<slug>.md' to implement it.
+Run 'solardi build --spec specs/<slug>.md' to implement it.
 ```

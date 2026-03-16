@@ -1,11 +1,11 @@
 import * as path from "path";
 import { stringify } from "yaml";
 import { YamlConfigLoader } from "./yaml-config-loader";
-import { SolitoConfig } from "./config";
+import { SolardiConfig } from "./config";
 import { createMockFileSystem } from "../test/mock-filesystem";
 
 describe("YamlConfigLoader", () => {
-  const configDir = path.join("/home", "user", ".solito");
+  const configDir = path.join("/home", "user", ".solardi");
   const configPath = path.join(configDir, "config.yaml");
 
   it("creates default config file when none exists", async () => {
@@ -22,7 +22,7 @@ describe("YamlConfigLoader", () => {
   });
 
   it("reads existing config file", async () => {
-    const existing: SolitoConfig = {
+    const existing: SolardiConfig = {
       default_agent: "codex",
       loop: { max_turn_time_minutes: 10 },
       agents: {
@@ -145,7 +145,7 @@ describe("YamlConfigLoader", () => {
   });
 
   it("preserves append_system_prompt from config", async () => {
-    const existing: SolitoConfig = {
+    const existing: SolardiConfig = {
       default_agent: "claude",
       loop: { max_turn_time_minutes: 10 },
       agents: {

@@ -16,7 +16,7 @@ Your working directory for persisting agent state is:
 ${var:command_work_dir}/
 ```
 
-This directory is pre-created by solito. On first run, create the following files inside it:
+This directory is pre-created by solardi. On first run, create the following files inside it:
 
 ```
 ${var:command_work_dir}/
@@ -30,7 +30,7 @@ ${var:command_work_dir}/
 On first run, append to `.gitignore` if not already present:
 
 ```
-.solito/
+.solardi/
 ```
 
 ---
@@ -65,7 +65,7 @@ already exists, resume from it.
 
 ### 3.2 Verify the working directory
 
-The working directory `${var:command_work_dir}/` is pre-created by solito. If prior state files
+The working directory `${var:command_work_dir}/` is pre-created by solardi. If prior state files
 exist, resume from them.
 
 ### 3.3 Run the test suite
@@ -295,7 +295,7 @@ On termination, generate `${var:command_work_dir}/report.md`:
 ```
 
 Print:
-> "Bug hunt complete. Found and fixed <count> bugs. Run `solito quality` to validate code quality."
+> "Bug hunt complete. Found and fixed <count> bugs. Run `solardi quality` to validate code quality."
 
 ---
 
@@ -362,5 +362,5 @@ while consecutive_loops_without_bugs < max_loops_without_bugs:
     state.bugs_fixed += 1
 
 generate_report()
-print("Bug hunt complete. Run `solito quality` to validate code quality.")
+print("Bug hunt complete. Run `solardi quality` to validate code quality.")
 ```

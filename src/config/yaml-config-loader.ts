@@ -1,5 +1,5 @@
 import { stringify, parse } from "yaml";
-import { ConfigLoader, SolitoConfig } from "./config";
+import { ConfigLoader, SolardiConfig } from "./config";
 import { FileSystem } from "../filesystem/filesystem";
 import { getConfigFilePath } from "../util/paths";
 import { createDefaultConfig, mergeWithDefaults } from "./default-config";
@@ -30,9 +30,9 @@ export class YamlConfigLoader implements ConfigLoader {
     this.projectConfigLoader = projectConfigLoader;
   }
 
-  async load(): Promise<SolitoConfig> {
+  async load(): Promise<SolardiConfig> {
     const exists = await this.filesystem.exists(this.configPath);
-    let globalConfig: SolitoConfig;
+    let globalConfig: SolardiConfig;
 
     if (!exists) {
       globalConfig = await this.createDefaultConfigFile();
@@ -43,7 +43,7 @@ export class YamlConfigLoader implements ConfigLoader {
     return this.applyProjectConfig(globalConfig);
   }
 
-  private async applyProjectConfig(globalConfig: SolitoConfig): Promise<SolitoConfig> {
+  private async applyProjectConfig(globalConfig: SolardiConfig): Promise<SolardiConfig> {
     if (!this.projectConfigLoader) {
       return globalConfig;
     }
@@ -55,7 +55,7 @@ export class YamlConfigLoader implements ConfigLoader {
     }
 
     const merged = mergeProjectConfig(globalConfig, projectConfig);
-    this.logger.info("Loaded project config from .solito/config.yaml");
+    this.logger.info("Loaded project config from .solardi/config.yaml");
 
     if (projectConfig.loop?.max_turn_time_minutes !== undefined) {
       this.logger.info(
@@ -66,7 +66,7 @@ export class YamlConfigLoader implements ConfigLoader {
     return merged;
   }
 
-  private async createDefaultConfigFile(): Promise<SolitoConfig> {
+  private async createDefaultConfigFile(): Promise<SolardiConfig> {
     const config = createDefaultConfig();
     const yaml = stringify(config);
     await this.filesystem.mkdirRecursive(this.configDir);
@@ -74,9 +74,9 @@ export class YamlConfigLoader implements ConfigLoader {
     return config;
   }
 
-  private async readConfigFile(): Promise<SolitoConfig> {
+  private async readConfigFile(): Promise<SolardiConfig> {
     const content = await this.filesystem.readFile(this.configPath);
-    const parsed = parse(content) as Partial<SolitoConfig>;
+    const parsed = parse(content) as Partial<SolardiConfig>;
     const merged = mergeWithDefaults(parsed);
 
     const validation = validateConfig(merged);

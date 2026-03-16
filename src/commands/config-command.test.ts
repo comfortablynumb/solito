@@ -1,14 +1,14 @@
 import { executeConfigCommand } from "./config-command";
-import { ConfigLoader, SolitoConfig } from "../config/config";
+import { ConfigLoader, SolardiConfig } from "../config/config";
 import { ProjectConfigLoader } from "../config/project-config-loader";
 
-function createMockConfigLoader(config: SolitoConfig): ConfigLoader {
+function createMockConfigLoader(config: SolardiConfig): ConfigLoader {
   return {
     load: jest.fn().mockResolvedValue(config),
   };
 }
 
-function createMockProjectConfigLoader(config: Partial<SolitoConfig> | null): ProjectConfigLoader {
+function createMockProjectConfigLoader(config: Partial<SolardiConfig> | null): ProjectConfigLoader {
   return {
     load: jest.fn().mockResolvedValue(config),
   };
@@ -16,7 +16,7 @@ function createMockProjectConfigLoader(config: Partial<SolitoConfig> | null): Pr
 
 describe("executeConfigCommand", () => {
   it("outputs config as YAML and returns 0", async () => {
-    const config: SolitoConfig = {
+    const config: SolardiConfig = {
       default_agent: "claude",
       loop: { max_turn_time_minutes: 10 },
       agents: { claude: { type: "claude" } },
@@ -34,12 +34,12 @@ describe("executeConfigCommand", () => {
   });
 
   it("shows project overrides when present", async () => {
-    const config: SolitoConfig = {
+    const config: SolardiConfig = {
       default_agent: "claude",
       loop: { max_turn_time_minutes: 10 },
       agents: { claude: { type: "claude" } },
     };
-    const projectConfig: Partial<SolitoConfig> = {
+    const projectConfig: Partial<SolardiConfig> = {
       default_agent: "codex",
     };
     const configLoader = createMockConfigLoader(config);
@@ -52,12 +52,12 @@ describe("executeConfigCommand", () => {
 
     const allOutput = output.mock.calls.map((c: unknown[]) => c[0]).join("\n");
     expect(allOutput).toContain("# Effective Configuration (merged)");
-    expect(allOutput).toContain("# Project Overrides (.solito/config.yaml)");
+    expect(allOutput).toContain("# Project Overrides (.solardi/config.yaml)");
     expect(allOutput).toContain("default_agent: codex");
   });
 
   it("shows no overrides message when project config is null", async () => {
-    const config: SolitoConfig = {
+    const config: SolardiConfig = {
       default_agent: "claude",
       loop: { max_turn_time_minutes: 10 },
       agents: { claude: { type: "claude" } },

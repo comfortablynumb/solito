@@ -17,7 +17,7 @@ export async function executeConfigCommand(deps: ConfigCommandDeps): Promise<num
     const projectConfig = await deps.projectConfigLoader.load();
 
     if (projectConfig) {
-      deps.output("# Project Overrides (.solito/config.yaml)");
+      deps.output("# Project Overrides (.solardi/config.yaml)");
       deps.output(stringify(projectConfig));
     } else {
       deps.output("# No project overrides found");

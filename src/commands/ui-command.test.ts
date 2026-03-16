@@ -29,14 +29,14 @@ describe("executeUiCommand", () => {
     // Wait for server to start
     await new Promise((r) => setTimeout(r, 100));
 
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Solito UI running"));
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Solardi UI running"));
 
     // Trigger shutdown — should exit immediately
     process.emit("SIGINT", "SIGINT");
 
     await new Promise((r) => setTimeout(r, 50));
 
-    expect(logger.info).toHaveBeenCalledWith("Shutting down Solito UI...");
+    expect(logger.info).toHaveBeenCalledWith("Shutting down Solardi UI...");
     expect(mockExit).toHaveBeenCalledWith(0);
 
     mockExit.mockRestore();
@@ -61,7 +61,7 @@ describe("executeUiCommand", () => {
 
     await new Promise((r) => setTimeout(r, 50));
 
-    expect(logger.info).toHaveBeenCalledWith("Shutting down Solito UI...");
+    expect(logger.info).toHaveBeenCalledWith("Shutting down Solardi UI...");
     expect(mockExit).toHaveBeenCalledWith(0);
 
     mockExit.mockRestore();

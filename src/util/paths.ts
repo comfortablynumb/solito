@@ -7,7 +7,7 @@ export function getConfigDir(homeDir?: string): string {
     throw new Error("Cannot determine home directory (HOME or USERPROFILE)");
   }
 
-  return path.join(home, ".solito");
+  return path.join(home, ".solardi");
 }
 
 export function getConfigFilePath(configDir: string): string {

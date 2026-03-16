@@ -86,7 +86,7 @@ describe("UiHandlers", () => {
 
       expect(res._status).toBe(200);
       expect(res._headers["Content-Type"]).toBe("text/html");
-      expect(res._body).toContain("Solito Dashboard");
+      expect(res._body).toContain("Solardi Dashboard");
     });
   });
 
@@ -257,7 +257,7 @@ describe("UiHandlers", () => {
 
   describe("getTsv", () => {
     it("parses and returns MetricReport array", async () => {
-      const files = { "/project/.solito/commands/quality/log.tsv": "loop\tcoverage\n1\t50\n2\t60" };
+      const files = { "/project/.solardi/commands/quality/log.tsv": "loop\tcoverage\n1\t50\n2\t60" };
       const { handlers } = buildHandlers(files);
       const res = createMockRes();
 
@@ -287,7 +287,7 @@ describe("UiHandlers", () => {
 
     it("returns 500 when TSV read fails", async () => {
       const store = new InMemoryMetricsStore();
-      const fs = createMockFileSystem({ "/project/.solito/commands/quality/log.tsv": "data" });
+      const fs = createMockFileSystem({ "/project/.solardi/commands/quality/log.tsv": "data" });
       (fs.readFile as jest.Mock).mockRejectedValueOnce(new Error("read error"));
       const handlers = createUiHandlers({
         store,
@@ -333,8 +333,8 @@ describe("UiHandlers", () => {
   describe("getAvailableCommands", () => {
     it("returns command names that have log.tsv", async () => {
       const files = {
-        "/project/.solito/commands/quality/log.tsv": "loop\tcoverage\n1\t50",
-        "/project/.solito/commands/build/log.tsv": "loop\tstatus\n1\tSUCCESS",
+        "/project/.solardi/commands/quality/log.tsv": "loop\tcoverage\n1\t50",
+        "/project/.solardi/commands/build/log.tsv": "loop\tstatus\n1\tSUCCESS",
       };
       const { handlers } = buildHandlers(files);
       const res = createMockRes();
@@ -352,8 +352,8 @@ describe("UiHandlers", () => {
 
     it("excludes directories without log.tsv", async () => {
       const files = {
-        "/project/.solito/commands/quality/log.tsv": "loop\tcoverage\n1\t50",
-        "/project/.solito/commands/build/progress.md": "some content",
+        "/project/.solardi/commands/quality/log.tsv": "loop\tcoverage\n1\t50",
+        "/project/.solardi/commands/build/progress.md": "some content",
       };
       const { handlers } = buildHandlers(files);
       const res = createMockRes();

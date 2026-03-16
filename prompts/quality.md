@@ -17,7 +17,7 @@ Your working directory for persisting all state (metrics, logs, memory, etc.) is
 ${var:command_work_dir}/
 ```
 
-This directory is pre-created by solito. On first run, create the following files inside it:
+This directory is pre-created by solardi. On first run, create the following files inside it:
 
 ```
 ${var:command_work_dir}/
@@ -38,7 +38,7 @@ ${var:command_work_dir}/
 On first run, append to `.gitignore` if not already present:
 
 ```
-.solito/
+.solardi/
 ```
 
 ---
@@ -76,7 +76,7 @@ branch already exists, resume from it.
 
 ### 3.2 Verify the working directory
 
-The working directory `${var:command_work_dir}/` is pre-created by solito. Create any subdirectories
+The working directory `${var:command_work_dir}/` is pre-created by solardi. Create any subdirectories
 (e.g., `features/`) as needed. If prior state files exist, resume from them.
 
 ### 3.3 Run the test suite and assess its health
@@ -868,14 +868,14 @@ generate_final_report()
 
 ### For quality improvement of an existing codebase
 
-1. Run `solito run quality` in your repository.
-2. Solito creates `.solito/commands/quality/` automatically for state persistence.
+1. Run `solardi run quality` in your repository.
+2. Solardi creates `.solardi/commands/quality/` automatically for state persistence.
 3. Optionally create `${var:command_work_dir}/config.json` to customize weights and scope.
 4. Walk away. Come back later to review the branch, the changelog, and the report.
 
 ### For new feature development
 
-1. Run `solito run quality` to start.
+1. Run `solardi run quality` to start.
 2. Create `${var:command_work_dir}/features/<feature-name>/spec.md` describing the feature.
 3. Write acceptance tests in `${var:command_work_dir}/features/<feature-name>/acceptance_tests/` that
    compile but fail.

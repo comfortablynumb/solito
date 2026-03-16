@@ -2,7 +2,7 @@ import { DefaultVariableResolver, getNestedValue } from "./variable-resolver";
 import { CommandVariables } from "../config/config";
 
 describe("DefaultVariableResolver", () => {
-  const resolver = new DefaultVariableResolver({ solitoRootDir: "/fake/solito" });
+  const resolver = new DefaultVariableResolver({ solardiRootDir: "/fake/solardi" });
 
   describe("env variables", () => {
     it("resolves ${env:...} from process.env", () => {
@@ -21,10 +21,10 @@ describe("DefaultVariableResolver", () => {
   });
 
   describe("var variables", () => {
-    it("resolves ${var:solito_root_dir}", () => {
-      const result = resolver.resolve("${var:solito_root_dir}/prompts/q.md");
+    it("resolves ${var:solardi_root_dir}", () => {
+      const result = resolver.resolve("${var:solardi_root_dir}/prompts/q.md");
 
-      expect(result).toBe("/fake/solito/prompts/q.md");
+      expect(result).toBe("/fake/solardi/prompts/q.md");
     });
 
     it("resolves flat variable from command variables", () => {
@@ -65,12 +65,12 @@ describe("DefaultVariableResolver", () => {
 
     it("resolves custom built-in variables", () => {
       const customResolver = new DefaultVariableResolver({
-        solitoRootDir: "/fake/solito",
-        builtIns: { command_work_dir: "/project/.solito/commands/quality" },
+        solardiRootDir: "/fake/solardi",
+        builtIns: { command_work_dir: "/project/.solardi/commands/quality" },
       });
       const result = customResolver.resolve("dir=${var:command_work_dir}");
 
-      expect(result).toBe("dir=/project/.solito/commands/quality");
+      expect(result).toBe("dir=/project/.solardi/commands/quality");
     });
   });
 
@@ -79,11 +79,11 @@ describe("DefaultVariableResolver", () => {
       process.env.TEST_SOLITO_MIX = "envval";
       const variables: CommandVariables = { count: 3 };
       const result = resolver.resolve(
-        "${var:solito_root_dir}/${env:TEST_SOLITO_MIX}/${var:count}",
+        "${var:solardi_root_dir}/${env:TEST_SOLITO_MIX}/${var:count}",
         variables,
       );
 
-      expect(result).toBe("/fake/solito/envval/3");
+      expect(result).toBe("/fake/solardi/envval/3");
       delete process.env.TEST_SOLITO_MIX;
     });
 

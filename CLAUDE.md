@@ -1,4 +1,4 @@
-# Solito
+# Solardi
 
 TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 
@@ -14,17 +14,17 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 - `src/commands/run-command.ts` - Executes agent in continuation loop with progress file persistence, 3-stage escalating timeout warnings (soft/urgent/kill) sent to agent via stdin, minute ticker, Windows-aware signal forwarding
 - `src/commands/config-command.ts` - Displays effective config as YAML plus project overrides section
 - `src/commands/ui-command.ts` - `executeUiCommand()`: starts metrics dashboard server, waits for SIGINT/SIGTERM
-- `src/commands/command-resolver.ts` - `CommandResolver` interface, `DefaultCommandResolver`: resolves named commands to prompt file content with variable interpolation. Supports inline prompt: `solito <command> '<text>'` extracts first word as command name, rest as `inlinePrompt`
-- `src/config/config.ts` - `SolitoConfig`, `AgentConfig`, `LoopConfig`, `StaleThresholds`, `CommandConfig`, `CommandVariables`, `ConfigLoader` types
+- `src/commands/command-resolver.ts` - `CommandResolver` interface, `DefaultCommandResolver`: resolves named commands to prompt file content with variable interpolation. Supports inline prompt: `solardi <command> '<text>'` extracts first word as command name, rest as `inlinePrompt`
+- `src/config/config.ts` - `SolardiConfig`, `AgentConfig`, `LoopConfig`, `StaleThresholds`, `CommandConfig`, `CommandVariables`, `ConfigLoader` types
 - `src/config/config-schema.ts` - Zod schema validation for config (including commands)
 - `src/config/default-config.ts` - Default config values and merge logic (includes `quality`, `build`, `hunt-bugs`, and `generate-spec` commands)
 - `src/config/config-merger.ts` - `mergeProjectConfig()`: deep merges project config overrides into global config
-- `src/config/project-config-loader.ts` - `ProjectConfigLoader` interface, `DefaultProjectConfigLoader`: loads `.solito/config.yaml` from CWD
-- `src/config/yaml-config-loader.ts` - Loads/creates `$HOME/.solito/config.yaml` with validation, integrates project config
+- `src/config/project-config-loader.ts` - `ProjectConfigLoader` interface, `DefaultProjectConfigLoader`: loads `.solardi/config.yaml` from CWD
+- `src/config/yaml-config-loader.ts` - Loads/creates `$HOME/.solardi/config.yaml` with validation, integrates project config
 - `src/interpolation/variable-resolver.ts` - `VariableResolver` interface, `DefaultVariableResolver`: interpolates `${var:...}` and `${env:...}` tokens
-- `src/workspace/workspace-initializer.ts` - `WorkspaceInitializer` interface, `DefaultWorkspaceInitializer`: creates `.solito/` dir, empty `config.yaml`, and `.solito/commands/{name}/` work dirs
+- `src/workspace/workspace-initializer.ts` - `WorkspaceInitializer` interface, `DefaultWorkspaceInitializer`: creates `.solardi/` dir, empty `config.yaml`, and `.solardi/commands/{name}/` work dirs
 - `prompts/quality.md` - Quality guardian prompt template with `${var:command_work_dir}` for persistence
-- `prompts/build.md` - Build agent prompt: two-phase approach per spec (Phase 1: write all failing tests, Phase 2: implement to pass them). Terminates when done and suggests `solito quality`
+- `prompts/build.md` - Build agent prompt: two-phase approach per spec (Phase 1: write all failing tests, Phase 2: implement to pass them). Terminates when done and suggests `solardi quality`
 - `prompts/hunt-bugs.md` - Bug hunter prompt: scans code for bugs, writes failing tests, fixes them. Supports `${var:spec_section}` and `${var:user_guidance_section}` from CLI `--spec`/`--prompt` flags. Terminates after `max_loops_without_bugs` consecutive loops with no bugs found
 - `prompts/generate-spec.md` - Spec generator prompt: analyzes project structure and generates actionable spec files in `specs/` directory. Receives feature description via `${var:user_guidance_section}` (from inline prompt or `--prompt` flag)
 - `src/stream/events.ts` - Claude CLI stream-json event types (NDJSON)
@@ -67,4 +67,4 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 
 1. Implement `Agent` interface in `src/agents/<name>.ts`
 2. Call `registerAgent()` in `src/agents/registry.ts`
-3. Add agent entry in `$HOME/.solito/config.yaml`
+3. Add agent entry in `$HOME/.solardi/config.yaml`

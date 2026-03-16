@@ -27,7 +27,7 @@ describe("UiServer", () => {
 
     await server.start();
 
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Solito UI running"));
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("Solardi UI running"));
   });
 
   it("rejects on server error during start", async () => {

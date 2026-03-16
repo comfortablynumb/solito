@@ -31,14 +31,14 @@ const commandConfigSchema = z.object({
   append_system_prompt: z.string().optional(),
 });
 
-const solitoConfigSchema = z.object({
+const solardiConfigSchema = z.object({
   default_agent: z.string(),
   loop: loopConfigSchema,
   agents: z.record(z.string(), agentConfigSchema),
   commands: z.record(z.string(), commandConfigSchema).optional(),
 });
 
-export type ValidatedConfig = z.infer<typeof solitoConfigSchema>;
+export type ValidatedConfig = z.infer<typeof solardiConfigSchema>;
 
 export interface ConfigValidationResult {
   success: boolean;
@@ -47,7 +47,7 @@ export interface ConfigValidationResult {
 }
 
 export function validateConfig(data: unknown): ConfigValidationResult {
-  const result = solitoConfigSchema.safeParse(data);
+  const result = solardiConfigSchema.safeParse(data);
 
   if (result.success) {
     return { success: true, config: result.data };

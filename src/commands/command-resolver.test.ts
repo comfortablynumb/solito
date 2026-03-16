@@ -3,11 +3,11 @@ import { createMockFileSystem } from "../test/mock-filesystem";
 import { VariableResolver } from "../interpolation/variable-resolver";
 import { CommandConfig, CommandVariables } from "../config/config";
 
-function createMockResolver(rootDir: string = "/solito"): VariableResolver {
+function createMockResolver(rootDir: string = "/solardi"): VariableResolver {
   return {
     resolve: jest.fn((template: string, variables?: CommandVariables) => {
       let result = template;
-      result = result.replace(/\$\{var:solito_root_dir\}/g, rootDir);
+      result = result.replace(/\$\{var:solardi_root_dir\}/g, rootDir);
 
       if (variables) {
         result = result.replace(/\$\{var:([^}]+)\}/g, (match, key) => {
@@ -44,10 +44,10 @@ describe("DefaultCommandResolver", () => {
 
   it("resolves a named command to its prompt file content", async () => {
     const commands: Record<string, CommandConfig> = {
-      quality: { prompt: "${var:solito_root_dir}/prompts/quality.md" },
+      quality: { prompt: "${var:solardi_root_dir}/prompts/quality.md" },
     };
     const filesystem = createMockFileSystem({
-      "/solito/prompts/quality.md": "You are a quality guardian.",
+      "/solardi/prompts/quality.md": "You are a quality guardian.",
     });
     const resolver = new DefaultCommandResolver({
       filesystem,
@@ -65,12 +65,12 @@ describe("DefaultCommandResolver", () => {
   it("interpolates variables in prompt file content", async () => {
     const commands: Record<string, CommandConfig> = {
       quality: {
-        prompt: "${var:solito_root_dir}/prompts/q.md",
+        prompt: "${var:solardi_root_dir}/prompts/q.md",
         variables: { threshold: 0.5 },
       },
     };
     const filesystem = createMockFileSystem({
-      "/solito/prompts/q.md": "Min threshold: ${var:threshold}%",
+      "/solardi/prompts/q.md": "Min threshold: ${var:threshold}%",
     });
     const resolver = new DefaultCommandResolver({
       filesystem,
@@ -85,10 +85,10 @@ describe("DefaultCommandResolver", () => {
 
   it("resolves first word as command name with inline prompt", async () => {
     const commands: Record<string, CommandConfig> = {
-      "generate-spec": { prompt: "${var:solito_root_dir}/prompts/gen.md" },
+      "generate-spec": { prompt: "${var:solardi_root_dir}/prompts/gen.md" },
     };
     const filesystem = createMockFileSystem({
-      "/solito/prompts/gen.md": "Generate a spec.",
+      "/solardi/prompts/gen.md": "Generate a spec.",
     });
     const resolver = new DefaultCommandResolver({
       filesystem,
@@ -108,7 +108,7 @@ describe("DefaultCommandResolver", () => {
     const resolver = new DefaultCommandResolver({
       filesystem: createMockFileSystem(),
       variableResolver: createMockResolver(),
-      commands: { quality: { prompt: "${var:solito_root_dir}/prompts/q.md" } },
+      commands: { quality: { prompt: "${var:solardi_root_dir}/prompts/q.md" } },
     });
 
     const result = await resolver.resolve("unknown-cmd do something");
@@ -131,7 +131,7 @@ describe("DefaultCommandResolver", () => {
 
   it("throws when prompt file does not exist", async () => {
     const commands: Record<string, CommandConfig> = {
-      missing: { prompt: "${var:solito_root_dir}/prompts/missing.md" },
+      missing: { prompt: "${var:solardi_root_dir}/prompts/missing.md" },
     };
     const resolver = new DefaultCommandResolver({
       filesystem: createMockFileSystem(),

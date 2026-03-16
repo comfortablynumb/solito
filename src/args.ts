@@ -151,12 +151,12 @@ function processRunFlag(args: string[], i: number, arg: string, state: RunArgSta
 }
 
 function parseRunArgs(args: string[], rawPrompt: boolean): CliCommand {
-  const { solito: solitoArgs, passthrough } = splitAtDoubleDash(args);
+  const { solardi: solardiArgs, passthrough } = splitAtDoubleDash(args);
   const state = createDefaultRunArgState();
 
-  for (let i = 0; i < solitoArgs.length; i++) {
-    const arg = solitoArgs[i];
-    const result = processRunFlag(solitoArgs, i, arg, state);
+  for (let i = 0; i < solardiArgs.length; i++) {
+    const arg = solardiArgs[i];
+    const result = processRunFlag(solardiArgs, i, arg, state);
 
     if (result && "help" in result) {
       return { kind: "help" };
@@ -211,15 +211,15 @@ function parseUiArgs(args: string[]): CliCommand {
   return { kind: "ui", host, port };
 }
 
-function splitAtDoubleDash(args: string[]): { solito: string[]; passthrough: string[] } {
+function splitAtDoubleDash(args: string[]): { solardi: string[]; passthrough: string[] } {
   const ddIndex = args.indexOf("--");
 
   if (ddIndex === -1) {
-    return { solito: args, passthrough: [] };
+    return { solardi: args, passthrough: [] };
   }
 
   return {
-    solito: args.slice(0, ddIndex),
+    solardi: args.slice(0, ddIndex),
     passthrough: args.slice(ddIndex + 1),
   };
 }
@@ -239,7 +239,7 @@ export function printUsage(): void {
   const commandList = commands.map((c) => `  ${c}`).join("\n");
 
   console.log(`
-Usage: solito <command> [options]
+Usage: solardi <command> [options]
 
 Commands:
   prompt [options] <prompt>   Run an agent with a raw prompt
@@ -256,7 +256,7 @@ Options:
   --verbose, -v         Show additional metadata for each message
   --spec <path>         Path to a spec file for context (e.g., hunt-bugs)
   --prompt, -p <text>   Additional guidance for the agent
-  --report-metrics      Send metrics to a running solito ui server
+  --report-metrics      Send metrics to a running solardi ui server
   --api-host <host>     Metrics server host (default: localhost)
   --api-port <port>     Metrics server port (default: 19191)
   --help, -h            Show this help message
@@ -267,18 +267,18 @@ UI Options:
   --port <port>         Dashboard port (default: 19191)
 
 Examples:
-  solito quality
-  solito build
-  solito hunt-bugs
-  solito hunt-bugs --spec specs/api.md --prompt 'focus on auth module'
-  solito generate-spec 'Add new endpoint /api/users to create users'
-  solito prompt 'refactor the auth module'
-  solito quality --agent=claude
-  solito quality -v
-  solito quality --report-metrics
-  solito quality -- --max-turns 5
-  solito ui
-  solito ui --port 8080
-  solito config
+  solardi quality
+  solardi build
+  solardi hunt-bugs
+  solardi hunt-bugs --spec specs/api.md --prompt 'focus on auth module'
+  solardi generate-spec 'Add new endpoint /api/users to create users'
+  solardi prompt 'refactor the auth module'
+  solardi quality --agent=claude
+  solardi quality -v
+  solardi quality --report-metrics
+  solardi quality -- --max-turns 5
+  solardi ui
+  solardi ui --port 8080
+  solardi config
 `);
 }

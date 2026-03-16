@@ -17,7 +17,7 @@ describe("DefaultProjectConfigLoader", () => {
   it("loads and parses project config when it exists", async () => {
     const yaml = "default_agent: codex\n";
     const filesystem = createMockFileSystem({
-      "/project/.solito/config.yaml": yaml,
+      "/project/.solardi/config.yaml": yaml,
     });
     const loader = new DefaultProjectConfigLoader({
       filesystem,
@@ -36,7 +36,7 @@ describe("DefaultProjectConfigLoader", () => {
       '    prompt: "./prompts/lint.md"',
     ].join("\n");
     const filesystem = createMockFileSystem({
-      "/project/.solito/config.yaml": yaml,
+      "/project/.solardi/config.yaml": yaml,
     });
     const loader = new DefaultProjectConfigLoader({
       filesystem,

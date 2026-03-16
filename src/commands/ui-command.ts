@@ -47,7 +47,7 @@ export async function executeUiCommand(params: UiCommandParams): Promise<number>
 
   return new Promise<number>(() => {
     const onSignal = () => {
-      logger.info("Shutting down Solito UI...");
+      logger.info("Shutting down Solardi UI...");
       server.stop().catch(ignoreStopError);
       process.exit(0);
     };

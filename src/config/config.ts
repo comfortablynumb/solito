@@ -26,7 +26,7 @@ export interface CommandConfig {
   append_system_prompt?: string;
 }
 
-export interface SolitoConfig {
+export interface SolardiConfig {
   default_agent: string;
   loop: LoopConfig;
   agents: Record<string, AgentConfig>;
@@ -34,5 +34,5 @@ export interface SolitoConfig {
 }
 
 export interface ConfigLoader {
-  load(): Promise<SolitoConfig>;
+  load(): Promise<SolardiConfig>;
 }

@@ -1,9 +1,9 @@
-import { SolitoConfig } from "./config";
+import { SolardiConfig } from "./config";
 
 export function mergeProjectConfig(
-  global: SolitoConfig,
-  project: Partial<SolitoConfig>,
-): SolitoConfig {
+  global: SolardiConfig,
+  project: Partial<SolardiConfig>,
+): SolardiConfig {
   return {
     default_agent: project.default_agent ?? global.default_agent,
     loop: {

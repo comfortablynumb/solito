@@ -101,7 +101,7 @@ function logIncomingReport(report: MetricReport, seenInstances: Set<string>, log
 }
 
 function handleGetTsv(res: ServerResponse, command: string, deps: UiHandlersDeps): void {
-  const tsvPath = path.join(deps.cwd, ".solito", "commands", command, "log.tsv");
+  const tsvPath = path.join(deps.cwd, ".solardi", "commands", command, "log.tsv");
 
   deps.filesystem.exists(tsvPath).then((exists) => {
     if (!exists) {
@@ -122,7 +122,7 @@ function handleGetTsv(res: ServerResponse, command: string, deps: UiHandlersDeps
 }
 
 function handleGetAvailableCommands(res: ServerResponse, deps: UiHandlersDeps): void {
-  const commandsDir = path.join(deps.cwd, ".solito", "commands");
+  const commandsDir = path.join(deps.cwd, ".solardi", "commands");
 
   deps.filesystem.listDirectories(commandsDir).then((dirs) => {
     const checks = dirs.map((dir) => {

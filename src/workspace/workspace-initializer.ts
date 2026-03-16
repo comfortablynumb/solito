@@ -1,7 +1,7 @@
 import * as path from "path";
 import { FileSystem } from "../filesystem/filesystem";
 
-const PROJECT_DIR = ".solito";
+const PROJECT_DIR = ".solardi";
 const CONFIG_FILE = "config.yaml";
 const COMMANDS_DIR = "commands";
 

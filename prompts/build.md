@@ -21,7 +21,7 @@ Your working directory for persisting agent state (metrics, logs, etc.) is:
 ${var:command_work_dir}/
 ```
 
-This directory is pre-created by solito. On first run, create the following files inside it:
+This directory is pre-created by solardi. On first run, create the following files inside it:
 
 ```
 ${var:command_work_dir}/
@@ -32,7 +32,7 @@ ${var:command_work_dir}/
   report.md                     # Final summary report, written on stop
 ```
 
-Spec files are located in the **project directory** (NOT inside `.solito/`):
+Spec files are located in the **project directory** (NOT inside `.solardi/`):
 
 ```
 ${var:specs_dir}/
@@ -49,7 +49,7 @@ The user creates and maintains spec files. The agent only reads them.
 On first run, append to `.gitignore` if not already present:
 
 ```
-.solito/
+.solardi/
 ```
 
 ---
@@ -85,7 +85,7 @@ exists, resume from it.
 
 ### 3.2 Verify the working directory
 
-The working directory `${var:command_work_dir}/` is pre-created by solito. If prior state files
+The working directory `${var:command_work_dir}/` is pre-created by solardi. If prior state files
 exist, resume from them.
 
 ### 3.3 Scan specs directory
@@ -176,7 +176,7 @@ Load `${var:command_work_dir}/state.json`. Determine the current spec:
 3. Otherwise, find the first spec file (alphabetically) whose status is not `complete` or
    `blocked`. Set it as `current_spec` with phase `testing`.
 4. If all specs are `complete` or `blocked`, terminate and print:
-   > "All specs processed. Run `solito quality` to validate code quality."
+   > "All specs processed. Run `solardi quality` to validate code quality."
 
 ### 4.2 Read the spec
 
@@ -384,7 +384,7 @@ All acceptance criteria satisfied with passing tests.
 ```
 
 3. Check if any specs remain (not `complete` or `blocked`). If none remain, terminate and print:
-   > "All specs processed. Run `solito quality` to validate code quality."
+   > "All specs processed. Run `solardi quality` to validate code quality."
 4. Otherwise, move to the next spec (step 4.1).
 
 ---
@@ -568,11 +568,11 @@ Reason: <why it was blocked>
 - <areas that need human attention>
 
 ## Next Step
-Run `solito quality` to validate code quality across the codebase.
+Run `solardi quality` to validate code quality across the codebase.
 ```
 
 After writing the report, print:
-> "All specs processed. Run `solito quality` to validate code quality."
+> "All specs processed. Run `solardi quality` to validate code quality."
 
 ---
 
@@ -689,7 +689,7 @@ for spec in specs (alphabetical order):
 
 if no_specs_remaining():
     generate_final_report()
-    print("All specs processed. Run `solito quality` to validate code quality.")
+    print("All specs processed. Run `solardi quality` to validate code quality.")
 ```
 
 ---
@@ -700,8 +700,8 @@ if no_specs_remaining():
 
 1. Create a `specs/` directory (or custom path) in your project root.
 2. Add ordered spec files: `01-feature.md`, `02-feature.md`, etc.
-3. Run `solito build` in your repository.
-4. Solito creates `.solito/commands/build/` automatically for state persistence.
+3. Run `solardi build` in your repository.
+4. Solardi creates `.solardi/commands/build/` automatically for state persistence.
 5. The agent reads specs, implements them test-first, and commits passing changes.
 
 ### Customizing
@@ -712,5 +712,5 @@ if no_specs_remaining():
 
 ### Resuming
 
-If the agent stops (timeout, external signal, or stagnation), run `solito build` again.
+If the agent stops (timeout, external signal, or stagnation), run `solardi build` again.
 The agent reads `state.json` and resumes from where it left off.

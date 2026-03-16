@@ -3,7 +3,7 @@ import { createMockFileSystem } from "../test/mock-filesystem";
 
 describe("DefaultWorkspaceInitializer", () => {
   describe("ensureProjectDir", () => {
-    it("creates .solito dir and empty config.yaml when missing", async () => {
+    it("creates .solardi dir and empty config.yaml when missing", async () => {
       const filesystem = createMockFileSystem();
       const initializer = new DefaultWorkspaceInitializer({
         filesystem,
@@ -13,7 +13,7 @@ describe("DefaultWorkspaceInitializer", () => {
       await initializer.ensureProjectDir();
 
       expect(filesystem.mkdirRecursive).toHaveBeenCalledWith(
-        expect.stringContaining(".solito"),
+        expect.stringContaining(".solardi"),
       );
       expect(filesystem.writeFile).toHaveBeenCalledWith(
         expect.stringContaining("config.yaml"),
@@ -23,7 +23,7 @@ describe("DefaultWorkspaceInitializer", () => {
 
     it("does not overwrite existing config.yaml", async () => {
       const filesystem = createMockFileSystem({
-        "/project/.solito/config.yaml": "default_agent: codex",
+        "/project/.solardi/config.yaml": "default_agent: codex",
       });
       const initializer = new DefaultWorkspaceInitializer({
         filesystem,
@@ -37,7 +37,7 @@ describe("DefaultWorkspaceInitializer", () => {
   });
 
   describe("ensureCommandDir", () => {
-    it("creates .solito/commands/{name} directory", async () => {
+    it("creates .solardi/commands/{name} directory", async () => {
       const filesystem = createMockFileSystem();
       const initializer = new DefaultWorkspaceInitializer({
         filesystem,
@@ -50,7 +50,7 @@ describe("DefaultWorkspaceInitializer", () => {
         expect.stringContaining("quality"),
       );
       expect(result).toContain("quality");
-      expect(result).toContain(".solito");
+      expect(result).toContain(".solardi");
       expect(result).toContain("commands");
     });
   });
