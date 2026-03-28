@@ -25,6 +25,7 @@ export interface UiHandlers {
   postMetrics(req: IncomingMessage, res: ServerResponse): void;
   getTsv(req: IncomingMessage, res: ServerResponse, command: string): void;
   getAvailableCommands(req: IncomingMessage, res: ServerResponse): void;
+  getState(req: IncomingMessage, res: ServerResponse, command: string): void;
 }
 
 export function createUiHandlers(deps: UiHandlersDeps): UiHandlers {
@@ -61,6 +62,10 @@ export function createUiHandlers(deps: UiHandlersDeps): UiHandlers {
 
     getAvailableCommands(_req, res) {
       handleGetAvailableCommands(res, deps);
+    },
+
+    getState(_req, res, command) {
+      handleGetState(res, command, deps);
     },
   };
 }
@@ -118,6 +123,30 @@ function handleGetTsv(res: ServerResponse, command: string, deps: UiHandlersDeps
     });
   }).catch(() => {
     sendJson(res, 500, { error: "Failed to check TSV file" });
+  });
+}
+
+function handleGetState(res: ServerResponse, command: string, deps: UiHandlersDeps): void {
+  const statePath = path.join(deps.cwd, ".solardi", "commands", command, "state.json");
+
+  deps.filesystem.exists(statePath).then((exists) => {
+    if (!exists) {
+      sendJson(res, 404, { error: "State file not found" });
+      return;
+    }
+
+    deps.filesystem.readFile(statePath).then((content) => {
+      try {
+        const state = JSON.parse(content);
+        sendJson(res, 200, state);
+      } catch {
+        sendJson(res, 500, { error: "Invalid state JSON" });
+      }
+    }).catch(() => {
+      sendJson(res, 500, { error: "Failed to read state file" });
+    });
+  }).catch(() => {
+    sendJson(res, 500, { error: "Failed to check state file" });
   });
 }
 

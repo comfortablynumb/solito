@@ -1,29 +1,22 @@
 import { DefaultCommandResolver } from "./command-resolver";
 import { createMockFileSystem } from "../test/mock-filesystem";
-import { VariableResolver } from "../interpolation/variable-resolver";
-import { CommandConfig, CommandVariables } from "../config/config";
+import { TemplateRenderer } from "../interpolation/template-renderer";
+import { CommandConfig } from "../config/config";
 
-function createMockResolver(rootDir: string = "/solardi"): VariableResolver {
+function createMockRenderer(rootDir: string = "/solardi"): TemplateRenderer {
   return {
-    resolve: jest.fn((template: string, variables?: CommandVariables) => {
-      let result = template;
-      result = result.replace(/\$\{var:solardi_root_dir\}/g, rootDir);
+    render: jest.fn((template: string, context: Record<string, unknown>) => {
+      return template.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, key) => {
+        const keys = key.trim().split(".");
+        let current: unknown = context;
 
-      if (variables) {
-        result = result.replace(/\$\{var:([^}]+)\}/g, (match, key) => {
-          const keys = key.split(".");
-          let current: unknown = variables;
+        for (const k of keys) {
+          if (typeof current !== "object" || current === null) return match;
+          current = (current as Record<string, unknown>)[k];
+        }
 
-          for (const k of keys) {
-            if (typeof current !== "object" || current === null) return match;
-            current = (current as Record<string, unknown>)[k];
-          }
-
-          return typeof current === "object" ? match : String(current);
-        });
-      }
-
-      return result;
+        return typeof current === "object" ? match : String(current ?? match);
+      });
     }),
   };
 }
@@ -32,7 +25,8 @@ describe("DefaultCommandResolver", () => {
   it("returns raw prompt when no matching command exists", async () => {
     const resolver = new DefaultCommandResolver({
       filesystem: createMockFileSystem(),
-      variableResolver: createMockResolver(),
+      renderer: createMockRenderer(),
+      solardiRootDir: "/solardi",
       commands: {},
     });
 
@@ -44,14 +38,15 @@ describe("DefaultCommandResolver", () => {
 
   it("resolves a named command to its prompt file content", async () => {
     const commands: Record<string, CommandConfig> = {
-      quality: { prompt: "${var:solardi_root_dir}/prompts/quality.md" },
+      quality: { prompt: "{{ solardi_root_dir }}/prompts/quality.md" },
     };
     const filesystem = createMockFileSystem({
       "/solardi/prompts/quality.md": "You are a quality guardian.",
     });
     const resolver = new DefaultCommandResolver({
       filesystem,
-      variableResolver: createMockResolver(),
+      renderer: createMockRenderer(),
+      solardiRootDir: "/solardi",
       commands,
     });
 
@@ -62,10 +57,10 @@ describe("DefaultCommandResolver", () => {
     expect(result.commandName).toBe("quality");
   });
 
-  it("interpolates variables in prompt file content", async () => {
+  it("returns raw content without rendering variables (rendering happens in cli.ts)", async () => {
     const commands: Record<string, CommandConfig> = {
       quality: {
-        prompt: "${var:solardi_root_dir}/prompts/q.md",
+        prompt: "{{ solardi_root_dir }}/prompts/q.md",
         variables: { threshold: 0.5 },
       },
     };
@@ -74,25 +69,27 @@ describe("DefaultCommandResolver", () => {
     });
     const resolver = new DefaultCommandResolver({
       filesystem,
-      variableResolver: createMockResolver(),
+      renderer: createMockRenderer(),
+      solardiRootDir: "/solardi",
       commands,
     });
 
     const result = await resolver.resolve("quality");
 
-    expect(result.prompt).toBe("Min threshold: 0.5%");
+    expect(result.prompt).toBe("Min threshold: ${var:threshold}%");
   });
 
   it("resolves first word as command name with inline prompt", async () => {
     const commands: Record<string, CommandConfig> = {
-      "generate-spec": { prompt: "${var:solardi_root_dir}/prompts/gen.md" },
+      "generate-spec": { prompt: "{{ solardi_root_dir }}/prompts/gen.md" },
     };
     const filesystem = createMockFileSystem({
       "/solardi/prompts/gen.md": "Generate a spec.",
     });
     const resolver = new DefaultCommandResolver({
       filesystem,
-      variableResolver: createMockResolver(),
+      renderer: createMockRenderer(),
+      solardiRootDir: "/solardi",
       commands,
     });
 
@@ -107,8 +104,9 @@ describe("DefaultCommandResolver", () => {
   it("returns not-a-command when first word does not match any command", async () => {
     const resolver = new DefaultCommandResolver({
       filesystem: createMockFileSystem(),
-      variableResolver: createMockResolver(),
-      commands: { quality: { prompt: "${var:solardi_root_dir}/prompts/q.md" } },
+      renderer: createMockRenderer(),
+      solardiRootDir: "/solardi",
+      commands: { quality: { prompt: "{{ solardi_root_dir }}/prompts/q.md" } },
     });
 
     const result = await resolver.resolve("unknown-cmd do something");
@@ -120,7 +118,8 @@ describe("DefaultCommandResolver", () => {
   it("defaults to empty commands when commands is undefined", async () => {
     const resolver = new DefaultCommandResolver({
       filesystem: createMockFileSystem(),
-      variableResolver: createMockResolver(),
+      renderer: createMockRenderer(),
+      solardiRootDir: "/solardi",
     });
 
     const result = await resolver.resolve("anything");
@@ -131,14 +130,55 @@ describe("DefaultCommandResolver", () => {
 
   it("throws when prompt file does not exist", async () => {
     const commands: Record<string, CommandConfig> = {
-      missing: { prompt: "${var:solardi_root_dir}/prompts/missing.md" },
+      missing: { prompt: "{{ solardi_root_dir }}/prompts/missing.md" },
     };
     const resolver = new DefaultCommandResolver({
       filesystem: createMockFileSystem(),
-      variableResolver: createMockResolver(),
+      renderer: createMockRenderer(),
+      solardiRootDir: "/solardi",
       commands,
     });
 
     await expect(resolver.resolve("missing")).rejects.toThrow("ENOENT");
+  });
+
+  it("normalizes legacy ${var:X} syntax in prompt path from config", async () => {
+    const commands: Record<string, CommandConfig> = {
+      quality: { prompt: "${var:solardi_root_dir}/prompts/quality.md" },
+    };
+    const filesystem = createMockFileSystem({
+      "/solardi/prompts/quality.md": "Quality prompt content.",
+    });
+    const resolver = new DefaultCommandResolver({
+      filesystem,
+      renderer: createMockRenderer(),
+      solardiRootDir: "/solardi",
+      commands,
+    });
+
+    const result = await resolver.resolve("quality");
+
+    expect(result.prompt).toBe("Quality prompt content.");
+    expect(result.isCommand).toBe(true);
+  });
+
+  it("derives prompt path from command name when prompt is not specified", async () => {
+    const commands: Record<string, CommandConfig> = {
+      quality: {},
+    };
+    const filesystem = createMockFileSystem({
+      "/solardi/prompts/quality.md": "Quality prompt content.",
+    });
+    const resolver = new DefaultCommandResolver({
+      filesystem,
+      renderer: createMockRenderer(),
+      solardiRootDir: "/solardi",
+      commands,
+    });
+
+    const result = await resolver.resolve("quality");
+
+    expect(result.prompt).toBe("Quality prompt content.");
+    expect(result.isCommand).toBe(true);
   });
 });

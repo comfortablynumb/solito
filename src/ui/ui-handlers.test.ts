@@ -330,6 +330,96 @@ describe("UiHandlers", () => {
     });
   });
 
+  describe("getState", () => {
+    it("returns parsed state.json for a command", async () => {
+      const stateJson = JSON.stringify({
+        current_spec: "01-user-auth.md",
+        specs_status: { "01-user-auth.md": { status: "complete", hash: "abc", summary: "Done" } },
+      });
+      const files = { "/project/.solardi/commands/build/state.json": stateJson };
+      const { handlers } = buildHandlers(files);
+      const res = createMockRes();
+
+      handlers.getState(createMockReq(), res, "build");
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(200);
+
+      const body = JSON.parse(res._body);
+      expect(body.current_spec).toBe("01-user-auth.md");
+      expect(body.specs_status["01-user-auth.md"].summary).toBe("Done");
+    });
+
+    it("returns 404 when state.json does not exist", async () => {
+      const { handlers } = buildHandlers();
+      const res = createMockRes();
+
+      handlers.getState(createMockReq(), res, "build");
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(404);
+    });
+
+    it("returns 500 when state.json read fails", async () => {
+      const store = new InMemoryMetricsStore();
+      const fs = createMockFileSystem({ "/project/.solardi/commands/build/state.json": "{}" });
+      (fs.readFile as jest.Mock).mockRejectedValueOnce(new Error("read error"));
+      const handlers = createUiHandlers({
+        store,
+        tsvParser: new DefaultTsvParser(),
+        tsvRowTransformer: new DefaultTsvRowTransformer(),
+        filesystem: fs,
+        logger: createMockLogger(),
+        cwd: "/project",
+      });
+      const res = createMockRes();
+
+      handlers.getState(createMockReq(), res, "build");
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(500);
+      expect(JSON.parse(res._body)).toEqual({ error: "Failed to read state file" });
+    });
+
+    it("returns 500 when state.json contains invalid JSON", async () => {
+      const files = { "/project/.solardi/commands/build/state.json": "not json" };
+      const { handlers } = buildHandlers(files);
+      const res = createMockRes();
+
+      handlers.getState(createMockReq(), res, "build");
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(500);
+      expect(JSON.parse(res._body)).toEqual({ error: "Invalid state JSON" });
+    });
+
+    it("returns 500 when exists check fails", async () => {
+      const store = new InMemoryMetricsStore();
+      const fs = createMockFileSystem();
+      (fs.exists as jest.Mock).mockRejectedValueOnce(new Error("fs error"));
+      const handlers = createUiHandlers({
+        store,
+        tsvParser: new DefaultTsvParser(),
+        tsvRowTransformer: new DefaultTsvRowTransformer(),
+        filesystem: fs,
+        logger: createMockLogger(),
+        cwd: "/project",
+      });
+      const res = createMockRes();
+
+      handlers.getState(createMockReq(), res, "build");
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(res._status).toBe(500);
+      expect(JSON.parse(res._body)).toEqual({ error: "Failed to check state file" });
+    });
+  });
+
   describe("getAvailableCommands", () => {
     it("returns command names that have log.tsv", async () => {
       const files = {

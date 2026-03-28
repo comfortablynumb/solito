@@ -89,6 +89,7 @@ export class TsvMetricsWatcher implements MetricsWatcher {
     const metrics = this.extractMetrics(headers, row);
 
     const commit = row["commit"] ?? row["commit_hash"] ?? undefined;
+    const spec = row["spec"] ?? undefined;
 
     return {
       instanceId: this.instanceId,
@@ -100,6 +101,7 @@ export class TsvMetricsWatcher implements MetricsWatcher {
       metrics,
       description: row["description"] ?? row["notes"] ?? "",
       ...(commit ? { commit } : {}),
+      ...(spec ? { spec } : {}),
     };
   }
 
@@ -122,7 +124,7 @@ export class TsvMetricsWatcher implements MetricsWatcher {
     const skipKeys = new Set([
       "loop", "status", "description", "notes",
       "date", "timestamp", "commit", "commit_hash",
-      "category", "metric_improved",
+      "category", "metric_improved", "spec",
     ]);
 
     for (const key of headers) {

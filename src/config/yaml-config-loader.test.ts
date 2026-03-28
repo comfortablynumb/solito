@@ -15,7 +15,7 @@ describe("YamlConfigLoader", () => {
     const config = await loader.load();
 
     expect(config.default_agent).toBe("claude");
-    expect(config.loop.max_turn_time_minutes).toBe(15);
+    expect(config.loop.max_turn_time_minutes).toBe(20);
     expect(config.agents.claude.type).toBe("claude");
     expect(fs.mkdirRecursive).toHaveBeenCalledWith(configDir);
     expect(fs.writeFile).toHaveBeenCalledWith(configPath, expect.any(String));
@@ -47,7 +47,7 @@ describe("YamlConfigLoader", () => {
     const config = await loader.load();
 
     expect(config.default_agent).toBe("codex");
-    expect(config.loop.max_turn_time_minutes).toBe(15);
+    expect(config.loop.max_turn_time_minutes).toBe(20);
     expect(config.agents.claude.type).toBe("claude");
   });
 

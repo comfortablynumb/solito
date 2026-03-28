@@ -812,7 +812,7 @@ describe("executeRunCommand", () => {
     expect(allLogs).toContain("loop 2");
   });
 
-  it("returns 1 when agent requests exit", async () => {
+  it("returns 0 when agent requests exit", async () => {
     const result: AgentResult = { exitCode: 0, stdout: "", stderr: "" };
     const child = createMockChild();
     const logger = createMockLogger();
@@ -831,9 +831,7 @@ describe("executeRunCommand", () => {
 
     const code = await executeRunCommand({ agent, prompt: "do stuff", logger, fs, maxIterations: 2 });
 
-    expect(code).toBe(1);
-    const allErrors = logger.error.mock.calls.map((c: unknown[]) => c[0]).join("\n");
-    expect(allErrors).toContain("Agent requested exit");
+    expect(code).toBe(0);
   });
 
   it("includes progress file in stop prompt on CTRL+C", async () => {

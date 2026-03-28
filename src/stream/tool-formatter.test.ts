@@ -17,9 +17,17 @@ describe("isKnownTool", () => {
     expect(isKnownTool("Glob")).toBe(true);
   });
 
+  it("returns true for Edit", () => {
+    expect(isKnownTool("Edit")).toBe(true);
+  });
+
+  it("returns true for Write", () => {
+    expect(isKnownTool("Write")).toBe(true);
+  });
+
   it("returns false for unknown tools", () => {
-    expect(isKnownTool("Write")).toBe(false);
-    expect(isKnownTool("Edit")).toBe(false);
+    expect(isKnownTool("Grep")).toBe(false);
+    expect(isKnownTool("Search")).toBe(false);
   });
 });
 
@@ -128,8 +136,39 @@ describe("formatToolInput", () => {
     });
   });
 
+  describe("Edit tool", () => {
+    it("formats edit with file path", () => {
+      const json = JSON.stringify({
+        file_path: "/tmp/foo.ts",
+        old_string: "const x = 1;",
+        new_string: "const x = 2;",
+      });
+      const result = formatToolInput("Edit", json);
+
+      expect(result).toEqual({
+        label: "Edit",
+        details: ["/tmp/foo.ts"],
+      });
+    });
+  });
+
+  describe("Write tool", () => {
+    it("formats write with file path", () => {
+      const json = JSON.stringify({
+        file_path: "/tmp/bar.ts",
+        content: "hello world",
+      });
+      const result = formatToolInput("Write", json);
+
+      expect(result).toEqual({
+        label: "Write",
+        details: ["/tmp/bar.ts"],
+      });
+    });
+  });
+
   it("returns null for unknown tools", () => {
-    const result = formatToolInput("Edit", '{"file_path": "/tmp/foo"}');
+    const result = formatToolInput("Search", '{"query": "foo"}');
     expect(result).toBeNull();
   });
 

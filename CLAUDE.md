@@ -5,7 +5,7 @@ TypeScript CLI that wraps AI agent execution (claude, codex, etc).
 ## Structure
 
 - `src/cli.ts` - Entry point: parses command, loads config, validates command names against built-in subcommands, dispatches to handler. For named commands, writes resolved prompt to file and injects `max_turn_time_minutes`. `buildDynamicBuiltIns()` reads `--spec` file and `--prompt` text into template variables
-- `src/args.ts` - Subcommand routing (prompt, config, ui, help, or command name as first arg). `prompt` subcommand sets `rawPrompt: true`. Supports `--spec`, `--prompt`/`-p`, `--report-metrics`, `--api-host`, `--api-port` flags. `UiCommand` kind for `ui` subcommand with `--host`/`--port`
+- `src/args.ts` - Subcommand routing (prompt, config, ui, help, or command name as first arg). `prompt` subcommand sets `rawPrompt: true`. Supports `--spec`, `--prompt`/`-p`, `--report-metrics-base-url` flags. `UiCommand` kind for `ui` subcommand with `--host`/`--port`
 - `src/agents/agent.ts` - `Agent` interface, `AgentHandle` (includes `iterationComplete` flag), `AgentRunOptions`
 - `src/agents/registry.ts` - Agent factory registry with `registerAgent()` / `getAgent()`
 - `src/agents/claude.ts` - Claude agent: streams JSON, detects `=== ITERATION COMPLETE ===` marker, kills process tree on completion

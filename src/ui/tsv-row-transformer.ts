@@ -8,7 +8,7 @@ export interface TsvRowTransformer {
 const SKIP_KEYS = new Set([
   "loop", "status", "description", "notes",
   "date", "timestamp", "commit", "commit_hash",
-  "category", "metric_improved",
+  "category", "metric_improved", "spec",
 ]);
 
 export class DefaultTsvRowTransformer implements TsvRowTransformer {
@@ -30,12 +30,18 @@ export class DefaultTsvRowTransformer implements TsvRowTransformer {
       metrics: this.extractMetrics(row),
       description: row["description"] || row["notes"] || "",
       ...this.extractCommit(row),
+      ...this.extractSpec(row),
     };
   }
 
   private extractCommit(row: TsvRow): { commit: string } | Record<string, never> {
     const commit = row["commit"] || row["commit_hash"];
     return commit ? { commit } : {};
+  }
+
+  private extractSpec(row: TsvRow): { spec: string } | Record<string, never> {
+    const spec = row["spec"];
+    return spec ? { spec } : {};
   }
 
   private extractMetrics(row: TsvRow): Record<string, number> {

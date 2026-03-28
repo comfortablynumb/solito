@@ -13,6 +13,14 @@ interface BashInput {
   description?: string;
 }
 
+interface EditInput {
+  file_path?: string;
+}
+
+interface WriteInput {
+  file_path?: string;
+}
+
 interface ReadInput {
   file_path?: string;
 }
@@ -22,7 +30,7 @@ interface GlobInput {
   path?: string;
 }
 
-const KNOWN_TOOLS = new Set(["Agent", "Bash", "Read", "Glob"]);
+const KNOWN_TOOLS = new Set(["Agent", "Bash", "Edit", "Write", "Read", "Glob"]);
 
 export function isKnownTool(name: string): boolean {
   return KNOWN_TOOLS.has(name);
@@ -41,6 +49,10 @@ export function formatToolInput(toolName: string, json: string): ToolDisplay | n
         return formatAgent(input as AgentInput);
       case "Bash":
         return formatBash(input as BashInput);
+      case "Edit":
+        return formatEdit(input as EditInput);
+      case "Write":
+        return formatWrite(input as WriteInput);
       case "Read":
         return formatRead(input as ReadInput);
       case "Glob":
@@ -77,6 +89,26 @@ function formatBash(input: BashInput): ToolDisplay {
   }
 
   return { label: "Bash", details };
+}
+
+function formatEdit(input: EditInput): ToolDisplay {
+  const details: string[] = [];
+
+  if (input.file_path) {
+    details.push(input.file_path);
+  }
+
+  return { label: "Edit", details };
+}
+
+function formatWrite(input: WriteInput): ToolDisplay {
+  const details: string[] = [];
+
+  if (input.file_path) {
+    details.push(input.file_path);
+  }
+
+  return { label: "Write", details };
 }
 
 function formatRead(input: ReadInput): ToolDisplay {

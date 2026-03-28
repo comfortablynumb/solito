@@ -16,23 +16,38 @@ export interface MetricsPayload {
   metrics: Record<string, number>;
   description: string;
   commit?: string;
+  spec?: string;
 }
 
 export interface HttpMetricsReporterDeps {
-  host: string;
-  port: number;
+  baseUrl: string;
   logger: Logger;
 }
 
 export class HttpMetricsReporter implements MetricsReporter {
+  private readonly baseUrl: string;
   private readonly host: string;
   private readonly port: number;
   private readonly logger: Logger;
 
-  constructor({ host, port, logger }: HttpMetricsReporterDeps) {
-    this.host = host;
-    this.port = port;
+  constructor({ baseUrl, logger }: HttpMetricsReporterDeps) {
+    this.baseUrl = baseUrl;
+    const parsed = this.parseBaseUrl(baseUrl);
+    this.host = parsed.host;
+    this.port = parsed.port;
     this.logger = logger;
+  }
+
+  private parseBaseUrl(baseUrl: string): { host: string; port: number } {
+    const parts = baseUrl.split(":");
+
+    if (parts.length < 2) {
+      return { host: baseUrl, port: 80 };
+    }
+
+    const port = parseInt(parts[parts.length - 1], 10);
+    const host = parts.slice(0, -1).join(":");
+    return { host, port: isNaN(port) ? 80 : port };
   }
 
   async ping(): Promise<void> {
@@ -51,7 +66,7 @@ export class HttpMetricsReporter implements MetricsReporter {
       );
 
       req.on("error", (err) => {
-        reject(new Error(`Cannot reach metrics server at ${this.host}:${this.port}: ${err.message}`));
+        reject(new Error(`Cannot reach metrics server at ${this.baseUrl}: ${err.message}`));
       });
 
       req.end();

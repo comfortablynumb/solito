@@ -33,6 +33,7 @@ export interface RunCommandParams {
   fs?: FileSystem;
   maxIterations?: number;
   staleChecker?: StaleMetricsChecker;
+  isOneShot?: boolean;
 }
 
 interface LoopState {
@@ -62,6 +63,7 @@ interface LoopContext {
   timedOut: { value: boolean };
   startTime: number;
   staleChecker?: StaleMetricsChecker;
+  isOneShot?: boolean;
 }
 
 export async function executeRunCommand(params: RunCommandParams): Promise<number> {
@@ -85,6 +87,10 @@ export async function executeRunCommand(params: RunCommandParams): Promise<numbe
     lastExitCode: 0,
     consecutiveFailures: 0,
   };
+
+  if (ctx.isOneShot) {
+    await cleanupProgressFile(ctx.fs, ctx.progressFilePath);
+  }
 
   try {
     return await runLoop(ctx, state);
@@ -115,6 +121,7 @@ function buildLoopContext(params: RunCommandParams): LoopContext {
     timedOut: { value: false },
     startTime: Date.now(),
     staleChecker: params.staleChecker,
+    isOneShot: params.isOneShot,
   };
 }
 
@@ -181,7 +188,7 @@ async function runSingleIteration(ctx: LoopContext, state: LoopState): Promise<I
   const options = buildRunOptions({
     agentConfig: ctx.agentConfig, loopConfig: ctx.loopConfig,
     passthrough: ctx.passthrough, progressFilePath: ctx.progressFilePath,
-    isFirstIteration: state.isFirstRun,
+    isFirstIteration: state.isFirstRun, isOneShot: ctx.isOneShot,
   });
   const handle = ctx.agent.run(state.currentPrompt, options);
   ctx.interrupted.value = false;
@@ -196,7 +203,7 @@ async function runSingleIteration(ctx: LoopContext, state: LoopState): Promise<I
     timedOut: ctx.timedOut, timeoutMs: ctx.timeoutMs,
     child: handle.child, logger: ctx.logger, verboseLogger,
   });
-  const cleanupTicker = setupMinuteTicker(ctx.logger, ctx.startTime);
+  const cleanupTicker = setupMinuteTicker(ctx.logger, ctx.startTime, ctx.timeoutMs);
 
   try {
     return await processIterationResult(ctx, state, handle);
@@ -236,8 +243,8 @@ async function processIterationResult(
   }
 
   if (handle.exitRequested.value) {
-    ctx.logger.error("Agent requested exit. Cannot continue without required tools.");
-    return { action: "return", code: 1 };
+    writeExitBanner(ctx.logger, ctx.startTime);
+    return { action: "return", code: 0 };
   }
 
   return handleExitCode(ctx, state, result.exitCode, result.stderr, handle);
@@ -295,6 +302,7 @@ interface BuildRunOptionsParams {
   passthrough?: string[];
   progressFilePath: string;
   isFirstIteration?: boolean;
+  isOneShot?: boolean;
 }
 
 function buildRunOptions(params: BuildRunOptionsParams): AgentRunOptions {
@@ -302,8 +310,9 @@ function buildRunOptions(params: BuildRunOptionsParams): AgentRunOptions {
     appendSystemPrompt: params.agentConfig?.append_system_prompt,
     loopMaxMinutes: params.loopConfig?.max_turn_time_minutes,
     passthrough: params.passthrough,
-    progressFilePath: params.progressFilePath,
+    progressFilePath: params.isOneShot ? undefined : params.progressFilePath,
     isFirstIteration: params.isFirstIteration,
+    isOneShot: params.isOneShot,
   };
 }
 
@@ -529,6 +538,13 @@ function writeLoopTransition(params: LoopTransitionParams): void {
   logger.info(`\n${sep}\n${message}\n${sep}`);
 }
 
+function writeExitBanner(logger: Logger, startTime: number): void {
+  const elapsed = formatElapsed(Date.now() - startTime);
+  const sep = `${ANSI.DIM}${SEPARATOR}${ANSI.RESET}`;
+  const message = `${ANSI.GREEN}${ANSI.BOLD}${ICONS.STOP} Agent finished after ${elapsed}.${ANSI.RESET}`;
+  logger.info(`\n${sep}\n${message}\n${sep}`);
+}
+
 function writeInterruptBanner(logger: Logger, startTime: number): void {
   const elapsed = formatElapsed(Date.now() - startTime);
   const sep = `${ANSI.DIM}${SEPARATOR}${ANSI.RESET}`;
@@ -566,7 +582,22 @@ function writeUserPrompt(prompt: string, logger: Logger): void {
   logger.info(`${separator}${header}${body}`);
 }
 
-function setupMinuteTicker(logger: Logger, startTime: number): () => void {
+function buildNextWarningText(elapsedInIterationMs: number, timeoutMs: number): string {
+  const softAt = timeoutMs - WARNING_SOFT_BEFORE_MS;
+  const urgentAt = timeoutMs - WARNING_URGENT_BEFORE_MS;
+
+  if (elapsedInIterationMs < softAt) {
+    return `next warning in ${Math.ceil((softAt - elapsedInIterationMs) / 60000)}m`;
+  }
+
+  if (elapsedInIterationMs < urgentAt) {
+    return `urgent warning in ${Math.ceil((urgentAt - elapsedInIterationMs) / 60000)}m`;
+  }
+
+  return `final warning in ${Math.ceil((timeoutMs - elapsedInIterationMs) / 60000)}m`;
+}
+
+function setupMinuteTicker(logger: Logger, startTime: number, timeoutMs?: number): () => void {
   let minuteCount = 0;
 
   const timer = setInterval(() => {
@@ -575,7 +606,11 @@ function setupMinuteTicker(logger: Logger, startTime: number): () => void {
     const time = formatTime(now);
     const elapsed = formatElapsed(Date.now() - startTime);
     const sep = `${ANSI.DIM}${SEPARATOR}${ANSI.RESET}`;
-    logger.info(`\n${sep}\n${ANSI.DIM}${ICONS.TIME} ${time} (minute ${minuteCount}, total ${elapsed})${ANSI.RESET}\n${sep}`);
+    const maxPart = timeoutMs ? ` / ${Math.round(timeoutMs / 60000)}m max` : "";
+    const warningPart = timeoutMs
+      ? `, ${buildNextWarningText(minuteCount * 60_000, timeoutMs)}`
+      : "";
+    logger.info(`\n${sep}\n${ANSI.DIM}${ICONS.TIME} ${time} (loop minute ${minuteCount}${maxPart}${warningPart}, total ${elapsed})${ANSI.RESET}\n${sep}`);
   }, 60_000);
 
   return () => clearInterval(timer);

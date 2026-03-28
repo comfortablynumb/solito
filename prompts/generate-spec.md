@@ -11,7 +11,7 @@ requested feature.
 Your working directory for persisting agent state is:
 
 ```
-${var:command_work_dir}/
+{{ command_work_dir }}/
 ```
 
 Output specs go into the project's `specs/` directory (create it if it does not exist).
@@ -20,14 +20,11 @@ Output specs go into the project's `specs/` directory (create it if it does not 
 
 ## 2. User Request
 
-${var:user_guidance_section}
+{% if args[0] %}
+**Additional instructions — must be followed precisely**:
 
-If the user guidance section above is empty, stop immediately and report:
-
-```
-Error: A feature description is required.
-Usage: solardi generate-spec 'describe the feature you want'
-```
+{{ args[0] }}
+{% endif %}
 
 ---
 
@@ -41,6 +38,7 @@ root:
 | `Cargo.toml`      | Rust       |
 | `go.mod`          | Go         |
 | `package.json`    | TypeScript |
+| `CMakeLists.txt`  | C/C++      |
 
 If multiple markers exist, ask the human which project to target. If none exist, stop and report.
 
@@ -65,8 +63,8 @@ Before writing the spec, build a mental model of the project:
 
 ## 5. Generate the Spec
 
-Create a spec file at `specs/<slug>.md` where `<slug>` is a kebab-case name derived from the feature
-description (e.g., `create-users-endpoint.md`).
+Create a spec file at `specs/{{ spec_number }}-<slug>.md` where `<slug>` is a kebab-case name derived
+from the feature description (e.g., `specs/001-create-users-endpoint.md`).
 
 The spec **must** follow this structure:
 
@@ -132,6 +130,21 @@ After writing the spec:
 When done, print:
 
 ```
-Spec written: specs/<slug>.md
-Run 'solardi build --spec specs/<slug>.md' to implement it.
+Spec written: specs/{{ spec_number }}-<slug>.md
+Run 'solardi build --spec specs/{{ spec_number }}-<slug>.md' to implement it.
+```
+
+Create `{{ command_work_dir }}/log.tsv` with the unified header and one data row:
+
+```
+loop	status	test_count	integration_tests_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
+1	SUCCESS	0	0	0	0	0	0	0	0	0	Spec created: specs/{{ spec_number }}-<slug>.md
+```
+
+(Replace `<slug>` with the actual slug used for the spec file.)
+
+Then output exactly:
+
+```
+=== EXIT ===
 ```

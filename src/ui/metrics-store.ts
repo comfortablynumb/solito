@@ -8,6 +8,7 @@ export interface MetricReport {
   metrics: Record<string, number>;
   description: string;
   commit?: string;
+  spec?: string;
 }
 
 export interface InstanceInfo {

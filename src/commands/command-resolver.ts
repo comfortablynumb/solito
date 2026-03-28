@@ -1,6 +1,6 @@
-import { CommandConfig } from "../config/config";
+import { CommandConfig, CommandVariables } from "../config/config";
 import { FileSystem } from "../filesystem/filesystem";
-import { VariableResolver } from "../interpolation/variable-resolver";
+import { TemplateRenderer } from "../interpolation/template-renderer";
 
 export interface CommandResolveResult {
   prompt: string;
@@ -15,18 +15,21 @@ export interface CommandResolver {
 
 export interface CommandResolverDeps {
   filesystem: FileSystem;
-  variableResolver: VariableResolver;
+  renderer: TemplateRenderer;
+  solardiRootDir: string;
   commands?: Record<string, CommandConfig>;
 }
 
 export class DefaultCommandResolver implements CommandResolver {
   private readonly filesystem: FileSystem;
-  private readonly variableResolver: VariableResolver;
+  private readonly renderer: TemplateRenderer;
+  private readonly solardiRootDir: string;
   private readonly commands: Record<string, CommandConfig>;
 
-  constructor({ filesystem, variableResolver, commands }: CommandResolverDeps) {
+  constructor({ filesystem, renderer, solardiRootDir, commands }: CommandResolverDeps) {
     this.filesystem = filesystem;
-    this.variableResolver = variableResolver;
+    this.renderer = renderer;
+    this.solardiRootDir = solardiRootDir;
     this.commands = commands ?? {};
   }
 
@@ -57,18 +60,26 @@ export class DefaultCommandResolver implements CommandResolver {
     name: string,
     config: CommandConfig,
   ): Promise<CommandResolveResult> {
-    const resolvedPath = this.variableResolver.resolve(
-      config.prompt,
-      config.variables,
-    );
-
+    const rawTemplate = config.prompt ?? `{{ solardi_root_dir }}/prompts/${name}.md`;
+    const promptTemplate = normalizePathTemplate(rawTemplate);
+    const pathContext = buildPathContext(this.solardiRootDir, config.variables);
+    const resolvedPath = this.renderer.render(promptTemplate, pathContext);
     const content = await this.filesystem.readFile(resolvedPath);
 
-    const resolvedContent = this.variableResolver.resolve(
-      content,
-      config.variables,
-    );
-
-    return { prompt: resolvedContent, isCommand: true, commandName: name };
+    return { prompt: content, isCommand: true, commandName: name };
   }
+}
+
+function normalizePathTemplate(template: string): string {
+  return template.replace(/\$\{var:([^}]+)\}/g, "{{ $1 }}");
+}
+
+function buildPathContext(
+  solardiRootDir: string,
+  variables?: CommandVariables,
+): Record<string, unknown> {
+  return {
+    ...(variables as Record<string, unknown> | undefined),
+    solardi_root_dir: solardiRootDir,
+  };
 }

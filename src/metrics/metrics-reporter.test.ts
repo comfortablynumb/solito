@@ -31,14 +31,14 @@ describe("HttpMetricsReporter", () => {
   describe("ping", () => {
     it("resolves when server is reachable", async () => {
       const logger = createMockLogger();
-      const reporter = new HttpMetricsReporter({ host: "localhost", port, logger });
+      const reporter = new HttpMetricsReporter({ baseUrl: `localhost:${port}`, logger });
 
       await expect(reporter.ping()).resolves.toBeUndefined();
     });
 
     it("rejects when server is unreachable", async () => {
       const logger = createMockLogger();
-      const reporter = new HttpMetricsReporter({ host: "localhost", port: 1, logger });
+      const reporter = new HttpMetricsReporter({ baseUrl: "localhost:1", logger });
 
       await expect(reporter.ping()).rejects.toThrow("Cannot reach metrics server");
     });
@@ -47,7 +47,7 @@ describe("HttpMetricsReporter", () => {
   describe("report", () => {
     it("sends payload as JSON POST to /api/metrics", async () => {
       const logger = createMockLogger();
-      const reporter = new HttpMetricsReporter({ host: "localhost", port, logger });
+      const reporter = new HttpMetricsReporter({ baseUrl: `localhost:${port}`, logger });
       const payload: MetricsPayload = {
         instanceId: "test-instance-1",
         command: "quality",
@@ -66,7 +66,7 @@ describe("HttpMetricsReporter", () => {
 
     it("uses status as detail when description is empty", async () => {
       const logger = createMockLogger();
-      const reporter = new HttpMetricsReporter({ host: "localhost", port, logger });
+      const reporter = new HttpMetricsReporter({ baseUrl: `localhost:${port}`, logger });
       const payload: MetricsPayload = {
         instanceId: "test-instance-1",
         command: "quality",
@@ -87,7 +87,7 @@ describe("HttpMetricsReporter", () => {
 
     it("uses empty detail when both description and status are empty", async () => {
       const logger = createMockLogger();
-      const reporter = new HttpMetricsReporter({ host: "localhost", port, logger });
+      const reporter = new HttpMetricsReporter({ baseUrl: `localhost:${port}`, logger });
       const payload: MetricsPayload = {
         instanceId: "test-instance-1",
         command: "quality",
@@ -106,7 +106,7 @@ describe("HttpMetricsReporter", () => {
 
     it("logs warning on connection error without throwing", async () => {
       const logger = createMockLogger();
-      const reporter = new HttpMetricsReporter({ host: "localhost", port: 1, logger });
+      const reporter = new HttpMetricsReporter({ baseUrl: "localhost:1", logger });
       const payload: MetricsPayload = {
         instanceId: "test-instance-1",
         command: "quality",

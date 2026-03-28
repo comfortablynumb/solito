@@ -91,7 +91,7 @@ export function getNestedValue(
   return current;
 }
 
-function findSolardiRootDir(): string {
+export function findSolardiRootDir(): string {
   let dir = __dirname;
 
   while (true) {

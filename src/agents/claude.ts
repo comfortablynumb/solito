@@ -123,6 +123,7 @@ export class ClaudeAgent implements Agent {
       progressFilePath: options?.progressFilePath,
       isFirstIteration: options?.isFirstIteration,
       workDir,
+      isOneShot: options?.isOneShot,
     });
   }
 

@@ -47,9 +47,8 @@ Options:
   --verbose, -v          Show agent stream metadata
   --spec <path>          Spec file for additional context
   --prompt, -p <text>    Additional guidance for the agent
-  --report-metrics       Send metrics to a running dashboard
-  --api-host <host>      Metrics server host (default: localhost)
-  --api-port <port>      Metrics server port (default: 19191)
+  --report-metrics-base-url <host:port>
+                         Metrics server address (default: localhost:19191)
   --help, -h             Show help
   --                     Pass remaining flags to the underlying agent
 ```
@@ -77,8 +76,9 @@ solardi generate-spec 'Add new REST endpoint for user profiles'
 solardi ui
 solardi ui --port 8080
 
-# Terminal 2: Run with metrics reporting
-solardi quality --report-metrics
+# Terminal 2: Run with metrics reporting (default: localhost:19191)
+solardi quality
+solardi quality --report-metrics-base-url=myhost:8080
 ```
 
 The dashboard displays real-time charts for coverage, complexity, linter issues, failed tests, and other metrics from each command's `log.tsv`. It auto-discovers TSV files from previous runs, deduplicates instances by project directory, and supports pagination.

@@ -1,6 +1,6 @@
 import { parseArgs, listBuiltInSubcommands, printUsage } from "./args";
 
-const DEFAULT_METRICS = { reportMetrics: false, apiHost: "localhost", apiPort: 19191 };
+const DEFAULT_METRICS = { metricsBaseUrl: "localhost:19191", forceVerify: false };
 
 describe("parseArgs", () => {
   beforeEach(() => {
@@ -220,26 +220,52 @@ describe("parseArgs", () => {
     });
   });
 
-  describe("--report-metrics flag", () => {
-    it("parses --report-metrics", () => {
-      const result = parseArgs(["node", "solardi", "quality", "--report-metrics"]);
-      expect(result).toEqual({
-        kind: "run", agentName: undefined, prompt: "quality",
-        rawPrompt: false, verbose: false, passthrough: [],
-        reportMetrics: true, apiHost: "localhost", apiPort: 19191,
-      });
+  describe("--report-metrics-base-url flag", () => {
+    it("defaults to localhost:19191", () => {
+      const result = parseArgs(["node", "solardi", "quality"]);
+
+      if (result.kind === "run") {
+        expect(result.metricsBaseUrl).toBe("localhost:19191");
+      }
     });
 
-    it("parses --api-host and --api-port", () => {
+    it("parses --report-metrics-base-url with space-separated value", () => {
       const result = parseArgs([
-        "node", "solardi", "quality", "--report-metrics",
-        "--api-host", "192.168.1.1", "--api-port", "8080",
+        "node", "solardi", "quality", "--report-metrics-base-url", "192.168.1.1:8080",
       ]);
 
       if (result.kind === "run") {
-        expect(result.reportMetrics).toBe(true);
-        expect(result.apiHost).toBe("192.168.1.1");
-        expect(result.apiPort).toBe(8080);
+        expect(result.metricsBaseUrl).toBe("192.168.1.1:8080");
+      }
+    });
+
+    it("parses --report-metrics-base-url=value syntax", () => {
+      const result = parseArgs([
+        "node", "solardi", "quality", "--report-metrics-base-url=myhost:3000",
+      ]);
+
+      if (result.kind === "run") {
+        expect(result.metricsBaseUrl).toBe("myhost:3000");
+      }
+    });
+  });
+
+  describe("--force-verify flag", () => {
+    it("parses --force-verify", () => {
+      const result = parseArgs(["node", "solardi", "build", "--force-verify"]);
+      expect(result).toEqual({
+        kind: "run", agentName: undefined, prompt: "build",
+        rawPrompt: false, verbose: false, passthrough: [],
+        metricsBaseUrl: "localhost:19191",
+        forceVerify: true,
+      });
+    });
+
+    it("defaults forceVerify to false", () => {
+      const result = parseArgs(["node", "solardi", "build"]);
+
+      if (result.kind === "run") {
+        expect(result.forceVerify).toBe(false);
       }
     });
   });

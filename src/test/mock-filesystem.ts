@@ -43,5 +43,21 @@ export function createMockFileSystem(files: Record<string, string> = {}): FileSy
 
       return Array.from(dirs);
     }),
+    listFiles: jest.fn(async (dirPath: string) => {
+      const prefix = normalizePath(dirPath).replace(/\/$/, "") + "/";
+      const files = new Set<string>();
+
+      for (const key of Object.keys(store)) {
+        if (key.startsWith(prefix)) {
+          const rest = key.slice(prefix.length);
+
+          if (rest && !rest.includes("/")) {
+            files.add(rest);
+          }
+        }
+      }
+
+      return Array.from(files);
+    }),
   };
 }

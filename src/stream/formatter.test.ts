@@ -38,13 +38,13 @@ describe("ConsoleStreamFormatter", () => {
       event: {
         type: "content_block_start",
         index: 0,
-        content_block: { type: "tool_use", id: "t1", name: "Write", input: {} },
+        content_block: { type: "tool_use", id: "t1", name: "Search", input: {} },
       },
     };
 
     formatter.format(message);
 
-    expect(output.getOutput()).toContain("Write");
+    expect(output.getOutput()).toContain("Search");
   });
 
   it("writes separator line after tool block stop", () => {
@@ -56,7 +56,7 @@ describe("ConsoleStreamFormatter", () => {
       event: {
         type: "content_block_start",
         index: 0,
-        content_block: { type: "tool_use", id: "t1", name: "Write", input: {} },
+        content_block: { type: "tool_use", id: "t1", name: "Search", input: {} },
       },
     });
 
@@ -184,7 +184,7 @@ describe("ConsoleStreamFormatter", () => {
       event: {
         type: "content_block_start",
         index: 0,
-        content_block: { type: "tool_use", id: "t1", name: "Write", input: {} },
+        content_block: { type: "tool_use", id: "t1", name: "Search", input: {} },
       },
     });
     output.write.mockClear();

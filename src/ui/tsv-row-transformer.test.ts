@@ -102,6 +102,27 @@ describe("DefaultTsvRowTransformer", () => {
     expect(reports[0].timestamp).toBe("2026-03-14");
   });
 
+  it("includes spec when present", () => {
+    const rows: TsvRow[] = [
+      { loop: "1", status: "SUCCESS", spec: "01-user-auth.md", coverage: "50" },
+    ];
+
+    const reports = transformer.toMetricReports(rows, "build", "/proj");
+
+    expect(reports[0].spec).toBe("01-user-auth.md");
+    expect(reports[0].metrics).toEqual({ coverage: 50 });
+  });
+
+  it("omits spec when absent", () => {
+    const rows: TsvRow[] = [
+      { loop: "1", status: "SUCCESS", coverage: "50" },
+    ];
+
+    const reports = transformer.toMetricReports(rows, "build", "/proj");
+
+    expect(reports[0].spec).toBeUndefined();
+  });
+
   it("returns empty array for empty input", () => {
     const reports = transformer.toMetricReports([], "quality", "/proj");
 

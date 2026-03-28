@@ -12,6 +12,7 @@ export interface AgentRunOptions {
   passthrough?: string[];
   progressFilePath?: string;
   isFirstIteration?: boolean;
+  isOneShot?: boolean;
 }
 
 export interface AgentHandle {

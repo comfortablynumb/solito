@@ -46,7 +46,7 @@ export function buildDashboardHtml(): string {
 
     <div id="no-instances" class="text-center py-16 text-slate-500">
       <p class="text-lg">No data available yet.</p>
-      <p class="text-sm mt-2">Run a command to generate metrics, or use <code class="text-slate-300">--report-metrics</code> for live updates.</p>
+      <p class="text-sm mt-2">Run a command to generate metrics. Metrics are reported automatically when the dashboard is running.</p>
     </div>
   </div>
 

@@ -21,9 +21,11 @@ export interface CommandVariables {
 }
 
 export interface CommandConfig {
-  prompt: string;
+  prompt?: string;
   variables?: CommandVariables;
   append_system_prompt?: string;
+  requires_prompt?: boolean;
+  one_shot?: boolean;
 }
 
 export interface SolardiConfig {

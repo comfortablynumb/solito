@@ -1,4 +1,4 @@
-import { SolardiConfig } from "./config";
+import { CommandConfig, SolardiConfig } from "./config";
 
 export function listBuiltInCommandNames(): string[] {
   const defaults = createDefaultConfig();
@@ -9,7 +9,7 @@ export function createDefaultConfig(): SolardiConfig {
   return {
     default_agent: "claude",
     loop: {
-      max_turn_time_minutes: 15,
+      max_turn_time_minutes: 20,
       stale: {
         first_warning: 2,
         second_warning: 2,
@@ -25,7 +25,6 @@ export function createDefaultConfig(): SolardiConfig {
     },
     commands: {
       quality: {
-        prompt: "${var:solardi_root_dir}/prompts/quality.md",
         variables: {
           thresholds: {
             min_coverage_pct_enhancement_per_loop: 0.5,
@@ -35,7 +34,6 @@ export function createDefaultConfig(): SolardiConfig {
         },
       },
       build: {
-        prompt: "${var:solardi_root_dir}/prompts/build.md",
         variables: {
           specs_dir: "specs",
           max_consecutive_failures: 5,
@@ -47,13 +45,13 @@ export function createDefaultConfig(): SolardiConfig {
         },
       },
       "hunt-bugs": {
-        prompt: "${var:solardi_root_dir}/prompts/hunt-bugs.md",
         variables: {
           max_loops_without_bugs: 3,
         },
       },
       "generate-spec": {
-        prompt: "${var:solardi_root_dir}/prompts/generate-spec.md",
+        requires_prompt: true,
+        one_shot: true,
       },
     },
   };
@@ -77,9 +75,19 @@ export function mergeWithDefaults(partial: Partial<SolardiConfig>): SolardiConfi
       ...defaults.agents,
       ...partial.agents,
     },
-    commands: {
-      ...defaults.commands,
-      ...partial.commands,
-    },
+    commands: mergeCommandEntries(defaults.commands, partial.commands),
   };
+}
+
+function mergeCommandEntries(
+  defaults: Record<string, CommandConfig> | undefined,
+  overrides: Record<string, CommandConfig> | undefined,
+): Record<string, CommandConfig> {
+  const result: Record<string, CommandConfig> = { ...defaults };
+
+  for (const [name, override] of Object.entries(overrides ?? {})) {
+    result[name] = { ...(defaults?.[name] ?? {}), ...override };
+  }
+
+  return result;
 }

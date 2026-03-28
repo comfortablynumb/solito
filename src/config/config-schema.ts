@@ -26,9 +26,11 @@ const commandVariablesSchema: z.ZodType<Record<string, string | number | boolean
 );
 
 const commandConfigSchema = z.object({
-  prompt: z.string(),
+  prompt: z.string().optional(),
   variables: commandVariablesSchema.optional(),
   append_system_prompt: z.string().optional(),
+  requires_prompt: z.boolean().optional(),
+  one_shot: z.boolean().optional(),
 });
 
 const solardiConfigSchema = z.object({

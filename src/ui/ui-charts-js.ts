@@ -15,6 +15,7 @@ ${buildInstanceManagement()}
 ${buildDashboardRefresh()}
 ${buildModalFunctions()}
 ${buildTsvRefresh()}
+${buildBuildSpecsSection()}
 ${buildInitSection()}
 })();
 `;
@@ -27,6 +28,7 @@ function buildStateSection(): string {
   var selectedInstanceId = null;
   var PAGE_SIZE = 10;
   var paginationState = {};
+  var lastKnownLoop = {};
   var CHART_COLORS = ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
   var CARD_BGS = [
     'bg-green-900/50', 'bg-amber-900/50', 'bg-blue-900/50', 'bg-red-900/50',
@@ -180,11 +182,13 @@ function buildCardBuilders(): string {
       '</div>' +
       '<div id="inst-cards-' + sid + '" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4"></div>' +
       '<div id="inst-charts-' + sid + '" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>' +
+      '<div id="inst-specs-' + sid + '" class="mt-4" style="display:none"></div>' +
+      '<div id="inst-spec-charts-' + sid + '" class="mt-4" style="display:none"></div>' +
       '<div class="mt-4">' +
         '<h3 class="text-sm font-semibold text-slate-300 mb-2">Loop History</h3>' +
         '<div class="overflow-x-auto">' +
           '<table class="w-full text-sm text-left">' +
-            '<thead class="text-xs text-slate-400 border-b border-slate-700">' +
+            '<thead id="inst-thead-' + sid + '" class="text-xs text-slate-400 border-b border-slate-700">' +
               '<tr>' +
                 '<th class="py-2 px-2">Loop</th>' +
                 '<th class="py-2 px-2">Status</th>' +
@@ -221,8 +225,10 @@ function buildCardBuilders(): string {
 function buildSetInstanceInfo(): string {
   return `  function setInstanceInfo(sid, inst) {
     if (!knownInstances[sid]) {
-      knownInstances[sid] = { metricKeys: [] };
+      knownInstances[sid] = { metricKeys: [], command: '' };
     }
+
+    knownInstances[sid].command = inst.command || '';
 
     var projectEl = document.getElementById('inst-project-' + sid);
 
@@ -336,7 +342,26 @@ function buildHistoryAndDelta(): string {
 }
 
 function buildHistoryRows(): string {
-  return `  function buildHistoryRows(metrics) {
+  return `  function hasSpecData(rows) {
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].spec) return true;
+    }
+    return false;
+  }
+
+  function buildHistoryHeader(showSpec) {
+    var html = '<tr>';
+    html += '<th class="py-2 px-2">Loop</th>';
+    if (showSpec) html += '<th class="py-2 px-2">Spec</th>';
+    html += '<th class="py-2 px-2">Status</th>';
+    html += '<th class="py-2 px-2">Commit</th>';
+    html += '<th class="py-2 px-2">Metrics</th>';
+    html += '<th class="py-2 px-2">Description</th>';
+    html += '</tr>';
+    return html;
+  }
+
+  function buildHistoryRows(metrics, showSpec) {
     var html = '';
 
     for (var i = 0; i < metrics.length; i++) {
@@ -345,13 +370,14 @@ function buildHistoryRows(): string {
 
       var rowData = JSON.stringify(r).replace(/"/g, '&quot;');
 
-      html += '<tr class="border-b border-slate-700/50 hover:bg-slate-600/40 cursor-pointer" onclick="showLoopModal(this)" data-row="' + rowData + '">' +
-        '<td class="py-1.5 px-2 font-mono">' + r.loop + '</td>' +
-        '<td class="py-1.5 px-2">' + statusBadge(r.status) + '</td>' +
-        '<td class="py-1.5 px-2">' + commitText + '</td>' +
-        '<td class="py-1.5 px-2 text-xs">' + formatMetricsSummary(r.metrics) + '</td>' +
-        '<td class="py-1.5 px-2 text-xs text-slate-400 max-w-xs truncate">' + (r.description || '-') + '</td>' +
-      '</tr>';
+      html += '<tr class="border-b border-slate-700/50 hover:bg-slate-600/40 cursor-pointer" onclick="showLoopModal(this)" data-row="' + rowData + '">';
+      html += '<td class="py-1.5 px-2 font-mono">' + r.loop + '</td>';
+      if (showSpec) html += '<td class="py-1.5 px-2 text-xs font-mono text-cyan-300">' + (r.spec || '-') + '</td>';
+      html += '<td class="py-1.5 px-2">' + statusBadge(r.status) + '</td>';
+      html += '<td class="py-1.5 px-2">' + commitText + '</td>';
+      html += '<td class="py-1.5 px-2 text-xs">' + formatMetricsSummary(r.metrics) + '</td>';
+      html += '<td class="py-1.5 px-2 text-xs text-slate-400 max-w-xs truncate">' + (r.description || '-') + '</td>';
+      html += '</tr>';
     }
 
     return html;
@@ -421,10 +447,18 @@ function buildPagerInteraction(): string {
   function renderHistoryPage(sid, allRows) {
     paginationState[sid + '_rows'] = allRows;
     var result = paginateRows(allRows, sid);
+    var showSpec = hasSpecData(allRows);
+
+    var theadEl = document.getElementById('inst-thead-' + sid);
+
+    if (theadEl) {
+      theadEl.innerHTML = buildHistoryHeader(showSpec);
+    }
+
     var historyEl = document.getElementById('inst-history-' + sid);
 
     if (historyEl) {
-      historyEl.innerHTML = buildHistoryRows(result.rows);
+      historyEl.innerHTML = buildHistoryRows(result.rows, showSpec);
     }
 
     var pagerEl = document.getElementById('inst-pager-' + sid);
@@ -577,9 +611,14 @@ function buildUpdateStatusAndHistory(): string {
       statusEl.textContent = (latest.status || '-').toUpperCase();
     }
 
-    var source = dataMetrics.length > 0 ? dataMetrics : metrics;
-    var reversed = source.slice().reverse();
-    renderHistoryPage(sid, reversed);
+    var currentLoop = latest.loop;
+
+    if (lastKnownLoop[sid] !== currentLoop) {
+      lastKnownLoop[sid] = currentLoop;
+      var source = dataMetrics.length > 0 ? dataMetrics : metrics;
+      var reversed = source.slice().reverse();
+      renderHistoryPage(sid, reversed);
+    }
   }`;
 }
 
@@ -665,6 +704,7 @@ function buildInstanceManagement(): string {
 
 function buildDashboardRefresh(): string {
   return `  function refreshDashboard() {
+    var scrollY = $(document).scrollTop();
     $.getJSON('/api/instances', function(instances) {
       var container = $('#instances-container');
       var countEl = $('#instance-count');
@@ -678,6 +718,7 @@ function buildDashboardRefresh(): string {
         noInstances.hide();
       } else {
         noInstances.show();
+        $(document).scrollTop(scrollY);
       }
 
       var needsNavUpdate = false;
@@ -699,6 +740,12 @@ function buildDashboardRefresh(): string {
           var keys = discoverMetricKeys(metrics);
           ensureInstanceLayout(sid, inst, keys);
           updateInstanceMetrics(sid, metrics);
+
+          if (inst.command === 'build') {
+            refreshBuildSpecs(sid, inst.command, metrics);
+          }
+
+          $(document).scrollTop(scrollY);
         });
       });
 
@@ -722,6 +769,10 @@ function buildModalHelpers(): string {
   function buildModalContent(row) {
     var html = '<div class="text-lg font-bold text-white mb-4">Loop ' + row.loop + '</div>';
     html += buildModalMetricRow('Status', statusBadge(row.status));
+    if (row.spec) {
+      html += buildModalMetricRow('Spec', row.spec);
+    }
+
     html += buildModalMetricRow('Commit', row.commit || '-');
 
     if (row.timestamp) {
@@ -779,6 +830,7 @@ function buildModalFunctions(): string {
 
 function buildTsvRefresh(): string {
   return `  function refreshTsvCommands() {
+    var scrollY = $(document).scrollTop();
     $.getJSON('/api/commands', function(commands) {
       if (!commands || commands.length === 0) return;
 
@@ -814,10 +866,188 @@ function buildTsvRefresh(): string {
           var keys = discoverMetricKeys(reports);
           ensureInstanceLayout(sid, first, keys);
           updateInstanceMetrics(sid, reports);
+
+          if (command === 'build') {
+            refreshBuildSpecs(sid, command, reports);
+          }
+
           updateVisibility();
+          $(document).scrollTop(scrollY);
         });
       });
     });
+  }`;
+}
+
+function buildBuildSpecsSection(): string {
+  return [
+    buildSpecsStatusBadge(),
+    buildSpecsTable(),
+    buildSpecCharts(),
+    buildRefreshBuildSpecs(),
+  ].join("\n\n");
+}
+
+function buildSpecsStatusBadge(): string {
+  return `  function specStatusBadge(status) {
+    var colors = {
+      'complete': 'bg-green-900/60 text-green-300',
+      'blocked': 'bg-red-900/60 text-red-300',
+      'incomplete': 'bg-amber-900/60 text-amber-300'
+    };
+    var cls = colors[status] || 'bg-slate-700 text-slate-300';
+    return '<span class="px-2 py-0.5 rounded text-xs font-medium ' + cls + '">' + (status || '-') + '</span>';
+  }`;
+}
+
+function buildSpecsTable(): string {
+  return `  function renderSpecsTable(sid, specsStatus) {
+    var container = document.getElementById('inst-specs-' + sid);
+    if (!container) return;
+
+    var specs = Object.keys(specsStatus);
+    if (specs.length === 0) { container.style.display = 'none'; return; }
+
+    container.style.display = '';
+    var html = '<h3 class="text-sm font-semibold text-slate-300 mb-2">Specs Status</h3>';
+    html += '<div class="overflow-x-auto"><table class="w-full text-sm text-left">';
+    html += '<thead class="text-xs text-slate-400 border-b border-slate-700"><tr>';
+    html += '<th class="py-2 px-2">Spec</th>';
+    html += '<th class="py-2 px-2">Status</th>';
+    html += '<th class="py-2 px-2">Summary</th>';
+    html += '</tr></thead><tbody class="text-slate-300">';
+
+    specs.sort();
+
+    for (var i = 0; i < specs.length; i++) {
+      var name = specs[i];
+      var entry = specsStatus[name];
+      var status = typeof entry === 'string' ? entry : (entry.status || '-');
+      var summary = typeof entry === 'object' ? (entry.summary || '') : '';
+
+      html += '<tr class="border-b border-slate-700/50">';
+      html += '<td class="py-1.5 px-2 font-mono text-xs">' + name + '</td>';
+      html += '<td class="py-1.5 px-2">' + specStatusBadge(status) + '</td>';
+      html += '<td class="py-1.5 px-2 text-xs text-slate-400 max-w-md">' + (summary || '-') + '</td>';
+      html += '</tr>';
+    }
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  }`;
+}
+
+function buildSpecCharts(): string {
+  return `  var specChartInstances = {};
+
+  function groupReportsBySpec(reports) {
+    var groups = {};
+
+    for (var i = 0; i < reports.length; i++) {
+      var r = reports[i];
+      var spec = r.spec || '';
+      if (!spec) continue;
+
+      if (!groups[spec]) groups[spec] = [];
+      groups[spec].push(r);
+    }
+
+    return groups;
+  }
+
+  function renderSpecCharts(sid, reports) {
+    var container = document.getElementById('inst-spec-charts-' + sid);
+    if (!container) return;
+
+    var groups = groupReportsBySpec(reports);
+    var specNames = Object.keys(groups).sort();
+    if (specNames.length === 0) { container.style.display = 'none'; return; }
+
+    container.style.display = '';
+    var allKeys = discoverMetricKeys(reports);
+    if (allKeys.length === 0) { container.style.display = 'none'; return; }
+
+    var html = '<h3 class="text-sm font-semibold text-slate-300 mb-2">Per-Spec Metrics</h3>';
+    html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">';
+
+    for (var ki = 0; ki < allKeys.length; ki++) {
+      var metricKey = allKeys[ki];
+      var chartId = 'spec-chart-' + sid + '-' + metricKey;
+      html += '<div class="bg-slate-900/50 rounded-lg p-3 border border-slate-700">';
+      html += '<div class="text-sm text-slate-400 mb-2">' + formatLabel(metricKey) + ' by Spec</div>';
+      html += '<div style="height:220px;"><canvas id="' + chartId + '"></canvas></div>';
+      html += '</div>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    for (var ki2 = 0; ki2 < allKeys.length; ki2++) {
+      var key = allKeys[ki2];
+      var cid = 'spec-chart-' + sid + '-' + key;
+      renderMultiSpecChart(cid, key, specNames, groups);
+    }
+  }
+
+  function renderMultiSpecChart(canvasId, metricKey, specNames, groups) {
+    if (specChartInstances[canvasId]) {
+      specChartInstances[canvasId].destroy();
+      delete specChartInstances[canvasId];
+    }
+
+    var ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    var datasets = [];
+
+    for (var i = 0; i < specNames.length; i++) {
+      var spec = specNames[i];
+      var color = CHART_COLORS[i % CHART_COLORS.length];
+      var data = groups[spec].map(function(r) { return (r.metrics || {})[metricKey] || 0; });
+      var labels = groups[spec].map(function(r) { return 'Loop ' + r.loop; });
+
+      datasets.push({
+        label: spec.replace(/\\.md$/, ''),
+        data: data,
+        borderColor: color,
+        backgroundColor: color + '33',
+        fill: false,
+        tension: 0
+      });
+    }
+
+    var maxLen = 0;
+    datasets.forEach(function(ds) { if (ds.data.length > maxLen) maxLen = ds.data.length; });
+    var chartLabels = [];
+    for (var j = 0; j < maxLen; j++) chartLabels.push('Loop ' + (j + 1));
+
+    specChartInstances[canvasId] = new Chart(ctx, {
+      type: 'line',
+      data: { labels: chartLabels, datasets: datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+          y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+        },
+        plugins: {
+          legend: { labels: { color: '#e2e8f0' } }
+        }
+      }
+    });
+  }`;
+}
+
+function buildRefreshBuildSpecs(): string {
+  return `  function refreshBuildSpecs(sid, command, reports) {
+    $.getJSON('/api/state/' + command, function(state) {
+      if (state && state.specs_status) {
+        renderSpecsTable(sid, state.specs_status);
+      }
+    });
+
+    renderSpecCharts(sid, reports);
   }`;
 }
 

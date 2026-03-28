@@ -30,6 +30,7 @@ export function createRouteDispatcher(handlers: UiHandlers): RouteDispatcher {
     { method: "GET", prefix: "/api/instances/", handler: handlers.getMetricsByInstance },
     { method: "GET", prefix: "/api/metrics/", handler: handlers.getMetricsByCommand },
     { method: "GET", prefix: "/api/tsv/", handler: handlers.getTsv },
+    { method: "GET", prefix: "/api/state/", handler: handlers.getState },
   ];
 
   return {

@@ -4,4 +4,5 @@ export interface FileSystem {
   exists(path: string): Promise<boolean>;
   mkdirRecursive(path: string): Promise<void>;
   listDirectories(path: string): Promise<string[]>;
+  listFiles(path: string): Promise<string[]>;
 }

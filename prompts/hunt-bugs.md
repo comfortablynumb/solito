@@ -13,16 +13,17 @@ and commit. Every commit makes the project strictly safer.
 Your working directory for persisting agent state is:
 
 ```
-${var:command_work_dir}/
+{{ command_work_dir }}/
 ```
 
 This directory is pre-created by solardi. On first run, create the following files inside it:
 
 ```
-${var:command_work_dir}/
+{{ command_work_dir }}/
   state.json                    # Bug hunt progress tracking
   bugs.md                       # Log of all bugs found and fixed
   report.md                     # Final summary report, written on stop
+  log.tsv                       # Metrics log for solardi UI (TSV)
 ```
 
 **Git tracking rules:**
@@ -45,6 +46,7 @@ root:
 | `Cargo.toml`      | Rust       |
 | `go.mod`          | Go         |
 | `package.json`    | TypeScript |
+| `CMakeLists.txt`  | C/C++      |
 
 If multiple markers exist, ask the human which project to target. If none exist, stop and report.
 
@@ -65,7 +67,7 @@ already exists, resume from it.
 
 ### 3.2 Verify the working directory
 
-The working directory `${var:command_work_dir}/` is pre-created by solardi. If prior state files
+The working directory `{{ command_work_dir }}/` is pre-created by solardi. If prior state files
 exist, resume from them.
 
 ### 3.3 Run the test suite
@@ -75,25 +77,49 @@ Run the full test suite:
 - **Rust**: `cargo test --workspace 2>&1`
 - **Go**: `go test ./... 2>&1`
 - **TypeScript**: `npm test 2>&1`
+- **C/C++**: `cmake --build build/ 2>&1 && ctest --test-dir build/ --output-on-failure 2>&1`
 
 All tests must pass before starting the hunt. If tests fail, fix them first.
 
 ### 3.4 Initialize state
 
-Create `${var:command_work_dir}/state.json`:
+Create `{{ command_work_dir }}/state.json`:
 
 ```json
 {
   "total_loops": 0,
+  "total_commits": 0,
   "bugs_found": 0,
   "bugs_fixed": 0,
-  "consecutive_loops_without_bugs": 0
+  "consecutive_loops_without_bugs": 0,
+  "test_count": 0,
+  "integration_tests_count": 0,
+  "coverage_pct": 0,
+  "failed_tests": 0,
+  "complexity_avg": 0,
+  "complexity_p75": 0,
+  "complexity_p90": 0,
+  "complexity_p99": 0,
+  "linter_issues": 0
 }
 ```
 
+Create `{{ command_work_dir }}/log.tsv` with this exact header line:
+
+```
+loop	status	test_count	integration_tests_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
+```
+
+This is the same unified header used by all solardi commands. For hunt-bugs, populate all
+numeric fields with actual measured values when available. Use `0` for fields you cannot
+measure in a given loop. The `description` field should include bug-specific info
+(e.g., "Bug found: off-by-one in pagination" or "No bug found").
+
+(Only the header; no data rows yet.)
+
 ### 3.5 Initialize bugs log
 
-Create `${var:command_work_dir}/bugs.md`:
+Create `{{ command_work_dir }}/bugs.md`:
 
 ```markdown
 # Bug Hunter Log
@@ -105,9 +131,9 @@ Create `${var:command_work_dir}/bugs.md`:
 
 ### 3.6 Read context
 
-${var:spec_section}
+{{ spec_section }}
 
-${var:user_guidance_section}
+{{ user_guidance_section }}
 
 ### 3.7 Confirm and begin
 
@@ -122,10 +148,11 @@ Repeat the following steps. Each iteration is called a **loop**.
 
 ### 4.1 Read state
 
-Load `${var:command_work_dir}/state.json`.
+Load `{{ command_work_dir }}/state.json`.
 
-If `consecutive_loops_without_bugs` >= **${var:max_loops_without_bugs}**, terminate and print:
-> "No new bugs found in ${var:max_loops_without_bugs} consecutive loops. Hunt complete."
+If `consecutive_loops_without_bugs` >= **{{ max_loops_without_bugs }}**, print:
+> "No new bugs found in {{ max_loops_without_bugs }} consecutive loops. Hunt complete."
+Then output exactly `=== EXIT ===` and stop.
 
 ### 4.2 Scan for bugs
 
@@ -198,6 +225,7 @@ Run the build command. If it fails, discard immediately.
 - **Rust**: `cargo build --workspace 2>&1`
 - **Go**: `go build ./... 2>&1`
 - **TypeScript**: `npm run build 2>&1`
+- **C/C++**: `cmake --build build/ 2>&1`
 
 #### 4.6.2 Lint (mandatory)
 
@@ -206,6 +234,7 @@ Run the linter. If it reports any errors, discard immediately.
 - **Rust**: `cargo clippy --workspace -- -D warnings 2>&1`
 - **Go**: `golangci-lint run ./... 2>&1`
 - **TypeScript**: `npx eslint . 2>&1`
+- **C/C++**: `clang-tidy -p build/ src/**/*.cpp src/**/*.c 2>&1` (or `cppcheck --enable=all --error-exitcode=1 src/ 2>&1`)
 
 #### 4.6.3 Tests
 
@@ -234,7 +263,7 @@ Loop: <loop_number>"
 
 ### 4.8 Update the bugs log
 
-Prepend an entry to `${var:command_work_dir}/bugs.md` (newest first):
+Prepend an entry to `{{ command_work_dir }}/bugs.md` (newest first):
 
 ```markdown
 ## Bug #<number> — <short title>
@@ -263,16 +292,39 @@ Prepend an entry to `${var:command_work_dir}/bugs.md` (newest first):
 Increment `total_loops`, `bugs_found`, `bugs_fixed`. Reset `consecutive_loops_without_bugs` to 0.
 Save state.
 
+### 4.10 Append metrics row
+
+Append one tab-separated row to `{{ command_work_dir }}/log.tsv` using the unified header:
+
+| Column | Value |
+|--------|-------|
+| `loop` | current `total_loops` value |
+| `status` | `SUCCESS` (bug fixed), `FAIL` (fix discarded), or `CLEAN` (no bug found) |
+| `test_count` | total number of tests after this loop |
+| `integration_tests_count` | number of integration tests (`0` if testcontainers not enabled) |
+| `coverage_pct` | code coverage percentage after this loop |
+| `failed_tests` | number of failing tests (`0` if all pass) |
+| `complexity_avg` | average cyclomatic complexity |
+| `complexity_p75` | 75th percentile complexity |
+| `complexity_p90` | 90th percentile complexity |
+| `complexity_p99` | 99th percentile complexity |
+| `linter_issues` | number of linter warnings + errors |
+| `description` | one-line summary (same as commit message, or `No bug found` for CLEAN) |
+
+Measure all metrics every loop. Use the same tooling described in Section 8 of the quality
+guardian prompt. If a metric tool fails, use `0` as a last resort — but always attempt
+measurement first.
+
 ---
 
 ## 5. Termination
 
 The agent terminates when:
 
-1. **${var:max_loops_without_bugs} consecutive loops** found no new bugs.
+1. **{{ max_loops_without_bugs }} consecutive loops** found no new bugs.
 2. **External signal** (timeout or CTRL+C).
 
-On termination, generate `${var:command_work_dir}/report.md`:
+On termination, generate `{{ command_work_dir }}/report.md`:
 
 ```markdown
 # Bug Hunt Report
@@ -296,6 +348,12 @@ On termination, generate `${var:command_work_dir}/report.md`:
 
 Print:
 > "Bug hunt complete. Found and fixed <count> bugs. Run `solardi quality` to validate code quality."
+
+Then output exactly:
+
+```
+=== EXIT ===
+```
 
 ---
 
@@ -363,4 +421,5 @@ while consecutive_loops_without_bugs < max_loops_without_bugs:
 
 generate_report()
 print("Bug hunt complete. Run `solardi quality` to validate code quality.")
+output("=== EXIT ===")
 ```

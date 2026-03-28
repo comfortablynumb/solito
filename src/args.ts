@@ -10,9 +10,8 @@ export interface RunCommand {
   spec?: string;
   extraPrompt?: string;
   passthrough: string[];
-  reportMetrics: boolean;
-  apiHost: string;
-  apiPort: number;
+  metricsBaseUrl: string;
+  forceVerify: boolean;
 }
 
 export interface UiCommand {
@@ -25,9 +24,10 @@ export type CliCommand =
   | RunCommand
   | UiCommand
   | { kind: "config" }
+  | { kind: "version" }
   | { kind: "help" };
 
-const BUILT_IN_SUBCOMMANDS = ["prompt", "config", "help", "ui"];
+const BUILT_IN_SUBCOMMANDS = ["prompt", "config", "help", "ui", "version"];
 
 export function listBuiltInSubcommands(): string[] {
   return BUILT_IN_SUBCOMMANDS;
@@ -44,6 +44,10 @@ export function parseArgs(argv: string[]): CliCommand {
 
   if (subcommand === "config") {
     return { kind: "config" };
+  }
+
+  if (subcommand === "version") {
+    return { kind: "version" };
   }
 
   if (subcommand === "ui") {
@@ -67,18 +71,16 @@ interface RunArgState {
   verbose: boolean;
   spec?: string;
   extraPrompt?: string;
-  reportMetrics: boolean;
-  apiHost: string;
-  apiPort: number;
+  metricsBaseUrl: string;
+  forceVerify: boolean;
   positional: string[];
 }
 
 function createDefaultRunArgState(): RunArgState {
   return {
     verbose: false,
-    reportMetrics: false,
-    apiHost: "localhost",
-    apiPort: 19191,
+    metricsBaseUrl: "localhost:19191",
+    forceVerify: false,
     positional: [],
   };
 }
@@ -113,8 +115,7 @@ function buildValueFlagDefs(state: RunArgState): ValueFlagDef[] {
     { flags: ["--agent", "-a"], equalPrefix: "--agent=", setter: (v) => { state.agentName = v; } },
     { flags: ["--spec"], equalPrefix: "--spec=", setter: (v) => { state.spec = v; } },
     { flags: ["--prompt", "-p"], equalPrefix: "--prompt=", setter: (v) => { state.extraPrompt = v; } },
-    { flags: ["--api-host"], equalPrefix: "--api-host=", setter: (v) => { state.apiHost = v; } },
-    { flags: ["--api-port"], equalPrefix: "--api-port=", setter: (v) => { state.apiPort = parseInt(v, 10); } },
+    { flags: ["--report-metrics-base-url"], equalPrefix: "--report-metrics-base-url=", setter: (v) => { state.metricsBaseUrl = v; } },
   ];
 }
 
@@ -124,8 +125,8 @@ function processBooleanFlag(arg: string, state: RunArgState): FlagResult | null 
     return { skip: 0 };
   }
 
-  if (arg === "--report-metrics") {
-    state.reportMetrics = true;
+  if (arg === "--force-verify") {
+    state.forceVerify = true;
     return { skip: 0 };
   }
 
@@ -181,8 +182,8 @@ function parseRunArgs(args: string[], rawPrompt: boolean): CliCommand {
 
   return {
     kind: "run", agentName: state.agentName, prompt, rawPrompt, verbose: state.verbose,
-    spec: state.spec, extraPrompt: state.extraPrompt, passthrough, reportMetrics: state.reportMetrics,
-    apiHost: state.apiHost, apiPort: state.apiPort,
+    spec: state.spec, extraPrompt: state.extraPrompt, passthrough, metricsBaseUrl: state.metricsBaseUrl,
+    forceVerify: state.forceVerify,
   };
 }
 
@@ -244,6 +245,7 @@ Usage: solardi <command> [options]
 Commands:
   prompt [options] <prompt>   Run an agent with a raw prompt
   config                      Show current configuration
+  version                     Show version
   ui                          Start the metrics dashboard
   help                        Show this help message
 
@@ -256,9 +258,11 @@ Options:
   --verbose, -v         Show additional metadata for each message
   --spec <path>         Path to a spec file for context (e.g., hunt-bugs)
   --prompt, -p <text>   Additional guidance for the agent
-  --report-metrics      Send metrics to a running solardi ui server
-  --api-host <host>     Metrics server host (default: localhost)
-  --api-port <port>     Metrics server port (default: 19191)
+  --report-metrics-base-url <host:port>
+                        Metrics server address (default: localhost:19191)
+                        Metrics are reported by default; a warning is shown
+                        if the server is unreachable
+  --force-verify        Re-verify all specs against code (ignores hashes)
   --help, -h            Show this help message
   --                    Pass remaining flags to the underlying agent
 
@@ -272,10 +276,11 @@ Examples:
   solardi hunt-bugs
   solardi hunt-bugs --spec specs/api.md --prompt 'focus on auth module'
   solardi generate-spec 'Add new endpoint /api/users to create users'
+  solardi build --force-verify
   solardi prompt 'refactor the auth module'
   solardi quality --agent=claude
   solardi quality -v
-  solardi quality --report-metrics
+  solardi quality --report-metrics-base-url=myhost:8080
   solardi quality -- --max-turns 5
   solardi ui
   solardi ui --port 8080

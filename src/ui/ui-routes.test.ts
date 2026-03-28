@@ -12,6 +12,7 @@ function createMockHandlers(): UiHandlers {
     postMetrics: jest.fn(),
     getTsv: jest.fn(),
     getAvailableCommands: jest.fn(),
+    getState: jest.fn(),
   };
 }
 
@@ -128,6 +129,17 @@ describe("RouteDispatcher", () => {
     dispatcher.dispatch(req, res);
 
     expect(handlers.getAvailableCommands).toHaveBeenCalledWith(req, res);
+  });
+
+  it("routes GET /api/state/:command to getState", () => {
+    const handlers = createMockHandlers();
+    const dispatcher = createRouteDispatcher(handlers);
+    const req = createMockReq("GET", "/api/state/build");
+    const res = createMockRes();
+
+    dispatcher.dispatch(req, res);
+
+    expect(handlers.getState).toHaveBeenCalledWith(req, res, "build");
   });
 
   it("defaults method to GET and url to / when undefined", () => {

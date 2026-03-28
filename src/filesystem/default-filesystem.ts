@@ -43,4 +43,17 @@ export class DefaultFileSystem implements FileSystem {
       throw err;
     }
   }
+
+  async listFiles(dirPath: string): Promise<string[]> {
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      return entries.filter((e) => !e.isDirectory()).map((e) => e.name);
+    } catch (err) {
+      if (isEnoentError(err)) {
+        return [];
+      }
+
+      throw err;
+    }
+  }
 }

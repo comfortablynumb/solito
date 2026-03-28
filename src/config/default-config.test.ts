@@ -7,10 +7,10 @@ describe("createDefaultConfig", () => {
     expect(config.default_agent).toBe("claude");
   });
 
-  it("returns config with 15 minute loop time", () => {
+  it("returns config with 20 minute loop time", () => {
     const config = createDefaultConfig();
 
-    expect(config.loop.max_turn_time_minutes).toBe(15);
+    expect(config.loop.max_turn_time_minutes).toBe(20);
   });
 
   it("includes claude agent entry", () => {
@@ -23,7 +23,7 @@ describe("createDefaultConfig", () => {
     const config = createDefaultConfig();
 
     expect(config.commands?.build).toBeDefined();
-    expect(config.commands?.build.prompt).toContain("prompts/build.md");
+    expect(config.commands?.build.prompt).toBeUndefined();
     expect(config.commands?.build.variables?.specs_dir).toBe("specs");
     expect(config.commands?.build.variables?.max_consecutive_failures).toBe(5);
   });
@@ -32,7 +32,7 @@ describe("createDefaultConfig", () => {
     const config = createDefaultConfig();
 
     expect(config.commands?.["hunt-bugs"]).toBeDefined();
-    expect(config.commands?.["hunt-bugs"].prompt).toContain("prompts/hunt-bugs.md");
+    expect(config.commands?.["hunt-bugs"].prompt).toBeUndefined();
     expect(config.commands?.["hunt-bugs"].variables?.max_loops_without_bugs).toBe(3);
   });
 });
@@ -60,7 +60,7 @@ describe("mergeWithDefaults", () => {
     const config = mergeWithDefaults({});
 
     expect(config.default_agent).toBe("claude");
-    expect(config.loop.max_turn_time_minutes).toBe(15);
+    expect(config.loop.max_turn_time_minutes).toBe(20);
     expect(config.agents.claude.type).toBe("claude");
   });
 

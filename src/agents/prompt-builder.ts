@@ -7,9 +7,14 @@ export interface PromptBuilderParams {
   progressFilePath?: string;
   isFirstIteration?: boolean;
   workDir?: string;
+  isOneShot?: boolean;
 }
 
 export function buildSystemPrompt(params: PromptBuilderParams): string {
+  if (params.isOneShot) {
+    return buildOneShotSystemPrompt(params);
+  }
+
   const { userPrompt, loopMaxMinutes, userSystemPrompt, progressFilePath, isFirstIteration, workDir } = params;
   const parts: string[] = [];
 
@@ -33,6 +38,37 @@ export function buildSystemPrompt(params: PromptBuilderParams): string {
   }
 
   return parts.join("\n\n");
+}
+
+function buildOneShotSystemPrompt(params: PromptBuilderParams): string {
+  const { userPrompt, userSystemPrompt, workDir } = params;
+  const parts: string[] = [];
+
+  parts.push(buildOneShotAgentSection());
+
+  if (workDir) {
+    parts.push(buildWorkDirSection(workDir));
+  }
+
+  parts.push(buildTaskSection(userPrompt));
+
+  if (userSystemPrompt) {
+    parts.push(userSystemPrompt.trim());
+  }
+
+  return parts.join("\n\n");
+}
+
+function buildOneShotAgentSection(): string {
+  return [
+    "You are an autonomous agent performing a one-shot task.",
+    "Complete the task described below, then output exactly this string on its own line:",
+    ITERATION_COMPLETE_MARKER,
+    "",
+    "IMPORTANT: Do NOT ask questions. Work autonomously.",
+    "Do NOT do any work beyond what is described in your task.",
+    "Once the task is complete, output the marker above and stop.",
+  ].join("\n");
 }
 
 function buildAutonomousAgentSection(loopMaxMinutes: number): string {
@@ -171,10 +207,27 @@ function buildMetricsLogSection(workDir?: string): string {
     `Before ending each iteration, you MUST append a row to ${workDir}/log.tsv`,
     "with the current loop's metrics. This file is read by the dashboard in real time.",
     "If the file does not exist yet, create it with this exact TSV header first:",
-    "loop\tstatus\ttest_count\tcoverage_pct\tfailed_tests\tcomplexity_avg\tcomplexity_p75\tcomplexity_p90\tcomplexity_p99\tlinter_issues\tdescription",
+    "loop\tstatus\ttest_count\tintegration_tests_count\tcoverage_pct\tfailed_tests\tcomplexity_avg\tcomplexity_p75\tcomplexity_p90\tcomplexity_p99\tlinter_issues\tdescription",
     "",
     "Each row MUST use exactly these columns in this order. Every numeric field must be a number (use 0 if unknown).",
     "Do NOT add, rename, or reorder columns. Do NOT skip this step — the dashboard cannot show progress without it.",
+    "",
+    "HOW TO COMPUTE COMPLEXITY PERCENTILES CORRECTLY:",
+    "1. Collect the complexity value for EVERY function/method in the codebase (not just the top N).",
+    "   Extract ALL values using the appropriate command for the project language:",
+    "   - TypeScript: `npx code-complexity . --format json` (no --limit flag)",
+    "   - Rust:       `rust-code-analysis-cli -m -O json -p src/` then extract cyclomatic values",
+    "   - Go:         `gocyclo .` (outputs all functions by default)",
+    "   - Java:       PMD with cyclomatic complexity rule, parse the XML/JSON report",
+    "2. Sort all collected values in ASCENDING order.",
+    "3. Compute:",
+    "   - complexity_avg = sum(all values) / count(all values)",
+    "   - complexity_p75 = value at index floor(0.75 * count)  (0-based, sorted ascending)",
+    "   - complexity_p90 = value at index floor(0.90 * count)",
+    "   - complexity_p99 = value at index floor(0.99 * count)",
+    "IMPORTANT: avg CAN legitimately exceed p75 or even p90 when a few functions have extreme",
+    "complexity (heavy right-skew). If you see avg > p75, double-check that you collected ALL",
+    "functions and sorted ascending before indexing — do not report without verifying.",
   ].join("\n");
 }
 
@@ -183,6 +236,7 @@ function buildLoopSummarySection(): string {
     "Before finishing each loop iteration, you MUST print a concise summary including:",
     "- Key metrics delta (ALWAYS include these, using the exact canonical names):",
     "  - test_count: X -> Y (delta)",
+    "  - integration_tests_count: X -> Y (delta)",
     "  - coverage_pct: X -> Y (delta)",
     "  - failed_tests: X -> Y (delta)",
     "  - complexity_avg: X -> Y (delta)",
