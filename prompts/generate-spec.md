@@ -137,7 +137,7 @@ Run 'solardi build --spec specs/{{ spec_number }}-<slug>.md' to implement it.
 Create `{{ command_work_dir }}/log.tsv` with the unified header and one data row:
 
 ```
-loop	status	test_count	integration_tests_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
+loop	status	unit_test_count	integration_tests_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
 1	SUCCESS	0	0	0	0	0	0	0	0	0	Spec created: specs/{{ spec_number }}-<slug>.md
 ```
 

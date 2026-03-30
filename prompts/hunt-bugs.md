@@ -92,7 +92,7 @@ Create `{{ command_work_dir }}/state.json`:
   "bugs_found": 0,
   "bugs_fixed": 0,
   "consecutive_loops_without_bugs": 0,
-  "test_count": 0,
+  "unit_test_count": 0,
   "integration_tests_count": 0,
   "coverage_pct": 0,
   "failed_tests": 0,
@@ -107,7 +107,7 @@ Create `{{ command_work_dir }}/state.json`:
 Create `{{ command_work_dir }}/log.tsv` with this exact header line:
 
 ```
-loop	status	test_count	integration_tests_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
+loop	status	unit_test_count	integration_tests_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
 ```
 
 This is the same unified header used by all solardi commands. For hunt-bugs, populate all
@@ -299,8 +299,8 @@ Append one tab-separated row to `{{ command_work_dir }}/log.tsv` using the unifi
 | Column | Value |
 |--------|-------|
 | `loop` | current `total_loops` value |
-| `status` | `SUCCESS` (bug fixed), `FAIL` (fix discarded), or `CLEAN` (no bug found) |
-| `test_count` | total number of tests after this loop |
+| `status` | `SUCCESS` (bug fixed), `FAIL` (validation failed), `CHANGES_DISCARDED` (fix discarded / metrics regressed), or `CLEAN` (no bug found) |
+| `unit_test_count` | number of unit tests (without `APP_INTEGRATION_TESTS=true`) after this loop |
 | `integration_tests_count` | number of integration tests (`0` if testcontainers not enabled) |
 | `coverage_pct` | code coverage percentage after this loop |
 | `failed_tests` | number of failing tests (`0` if all pass) |
@@ -314,6 +314,11 @@ Append one tab-separated row to `{{ command_work_dir }}/log.tsv` using the unifi
 Measure all metrics every loop. Use the same tooling described in Section 8 of the quality
 guardian prompt. If a metric tool fails, use `0` as a last resort — but always attempt
 measurement first.
+
+**Metric values by status:**
+- `status=SUCCESS` → log the **new** metrics (just committed)
+- `status=CHANGES_DISCARDED` or `status=FAIL` → log the **baseline** metrics from `state.json` (changes rolled back)
+- `status=CLEAN` → log current metrics (no changes were made)
 
 ---
 

@@ -203,13 +203,13 @@ introduce new external dependencies. If the scan finds a new dependency, update
 Create `{{ command_work_dir }}/log.tsv` with **exactly** this header (tab-separated):
 
 ```
-loop	status	test_count	integration_tests_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
+loop	status	unit_test_count	integration_tests_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
 ```
 
 Column definitions (these names are mandatory and must not be changed):
 - `loop`: loop iteration number (0 for baseline)
-- `status`: `SUCCESS`, `FAIL`, or `TIMEOUT`
-- `test_count`: total number of tests (unit + integration)
+- `status`: `SUCCESS`, `FAIL`, `TIMEOUT`, or `CHANGES_DISCARDED`
+- `unit_test_count`: number of unit tests (tests that run WITHOUT `APP_INTEGRATION_TESTS=true`)
 - `integration_tests_count`: number of integration tests (gated on `APP_INTEGRATION_TESTS=true`). `0` if testcontainers not enabled
 - `coverage_pct`: code coverage percentage (e.g. `72.5`)
 - `failed_tests`: number of failing tests
@@ -356,8 +356,9 @@ git checkout -- .
 git clean -fd
 ```
 
-Log the failure in `{{ command_work_dir }}/log.tsv` with `status=FAIL`, then go back to step 4.1 with
-a different approach.
+Log the failure in `{{ command_work_dir }}/log.tsv` with `status=FAIL` and the **baseline metric
+values** from `state.json` (since changes were rolled back), then go back to step 4.1 with a
+different approach.
 
 ### 4.4 Measure
 
@@ -387,7 +388,7 @@ Before committing, compare **every** metric against the baseline. The rules are 
    — the change MUST be discarded. There is NO tolerance, NO threshold, NO exception. A change
    that improves coverage but increases complexity is INVALID. A change that reduces complexity
    but drops coverage is INVALID. Every metric must be >= its baseline value (for coverage,
-   test_count, integration_tests_count) or <= its baseline value (for complexity_avg,
+   unit_test_count, integration_tests_count) or <= its baseline value (for complexity_avg,
    complexity_p75, complexity_p90, complexity_p99, linter_issues, failed_tests).
 
 2. **At least one metric must strictly improve.** If all metrics stayed exactly the same, the
@@ -397,7 +398,7 @@ Before committing, compare **every** metric against the baseline. The rules are 
    - **Priority 1**: Coverage increased (by at least {{ thresholds.min_coverage_pct_enhancement_per_loop }}%)
    - **Priority 2**: Complexity decreased
 
-**Adding tests is only a valid commit if `coverage_pct` increased.** A rising `test_count` with
+**Adding tests is only a valid commit if `coverage_pct` increased.** A rising `unit_test_count` with
 flat or falling coverage means the new tests only exercise already-covered code paths. Such
 changes MUST be discarded. The only exception is parametric or property-based tests that
 deliberately probe edge cases for correctness (e.g., boundary values, invalid inputs) where all
@@ -410,7 +411,7 @@ a linter/quality improvement, not a coverage improvement.
 - No metric improved
 - Any mandatory gate failed (build, lint, tests)
 
-**Discard** means: `git checkout -- . && git clean -fd`, log `status=FAIL`, try something else.
+**Discard** means: `git checkout -- . && git clean -fd`, log `status=CHANGES_DISCARDED`, try something else.
 
 **MANDATORY PRE-COMMIT CHECK** — before running `git add` or `git commit`, you MUST print the
 following comparison table and explicitly state COMMIT or DISCARD. Do NOT proceed to commit
@@ -423,7 +424,7 @@ PRE-COMMIT METRIC CHECK:
   complexity_p75:            <baseline> → <current>  (<+X> or <-X>)      ✅ or ❌
   complexity_p90:            <baseline> → <current>  (<+X> or <-X>)      ✅ or ❌
   complexity_p99:            <baseline> → <current>  (<+X> or <-X>)      ✅ or ❌
-  test_count:                <baseline> → <current>  (<+X> or <-X>)      ✅ or ❌
+  unit_test_count:           <baseline> → <current>  (<+X> or <-X>)      ✅ or ❌
   integration_tests_count:   <baseline> → <current>  (<+X> or <-X>)      ✅ or ❌
   linter_issues:             <baseline> → <current>  (<+X> or <-X>)      ✅ or ❌
   failed_tests:              <baseline> → <current>  (<+X> or <-X>)      ✅ or ❌
@@ -479,13 +480,26 @@ Append a row to `{{ command_work_dir }}/log.tsv` with all fields filled. Use **e
 tab-separated columns in this order:
 
 ```
-<loop>	<status>	<test_count>	<integration_tests_count>	<coverage_pct>	<failed_tests>	<complexity_avg>	<complexity_p75>	<complexity_p90>	<complexity_p99>	<linter_issues>	<description>
+<loop>	<status>	<unit_test_count>	<integration_tests_count>	<coverage_pct>	<failed_tests>	<complexity_avg>	<complexity_p75>	<complexity_p90>	<complexity_p99>	<linter_issues>	<description>
 ```
 
 Every numeric field MUST contain a number. For `coverage_pct` and all `complexity_*` fields,
 `0` is **never** acceptable as a fallback — if the tool fails, retry or use the alternate tool
 listed in Sections 8.1 and 8.2 before logging the row.
 Do NOT add extra columns, rename columns, or reorder them.
+
+**CRITICAL — Metric values for discarded loops:**
+
+When a loop is discarded (`status=CHANGES_DISCARDED`), the metric values logged in `log.tsv`
+MUST be the **last committed baseline values** from `state.json` — NOT the metrics measured
+from the discarded changes. This is because the discarded changes are rolled back, so the
+codebase state after discard is identical to the last committed baseline. Logging the discarded
+metrics would misrepresent the actual state of the codebase and confuse the dashboard.
+
+- `status=SUCCESS` → log the **new** metrics (the ones just committed)
+- `status=CHANGES_DISCARDED` → log the **baseline** metrics from `state.json` (unchanged)
+- `status=FAIL` → log the **baseline** metrics from `state.json` (validation failed, changes rolled back)
+- `status=TIMEOUT` → log the **baseline** metrics from `state.json`
 
 ### 4.8 Per-loop summary (mandatory)
 
@@ -496,7 +510,7 @@ for the four key metrics:
 ┌──────────────────────────┬──────────┬──────────┬─────────┐
 │ Metric                   │ Previous │ Current  │ Delta   │
 ├──────────────────────────┼──────────┼──────────┼─────────┤
-│ test_count               │ 89       │ 91       │ +2      │
+│ unit_test_count           │ 89       │ 91       │ +2      │
 │ integration_tests_count  │ 5        │ 7        │ +2      │
 │ coverage_pct             │ 68.2     │ 69.1     │ +0.9    │
 │ failed_tests             │ 3        │ 2        │ -1      │
@@ -511,9 +525,9 @@ Status: COMMITTED | Loop: 5 | Hypothesis: <one-line>
 
 - **Previous** = values from `state.json` before this loop's change.
 - **Current** = values measured after this loop's change (even if discarded).
-- Always include all five rows, even if unchanged (show delta as `0`).
-- If the loop was discarded, show `Status: DISCARDED` and the current values still reflect the
-  measurement (they will match previous since changes were rolled back).
+- Always include all rows, even if unchanged (show delta as `0`).
+- If the loop was discarded, show `Status: CHANGES_DISCARDED` and the current values will match
+  the previous values since changes were rolled back.
 
 ### 4.9 Anti-stagnation rules
 
@@ -774,7 +788,7 @@ a unified `{{ command_work_dir }}/state.json` with this schema:
 ```json
 {
   "timestamp": "2026-03-10T14:30:00Z",
-  "test_count": 142,
+  "unit_test_count": 142,
   "integration_tests_count": 8,
   "coverage_pct": 72.5,
   "failed_tests": 3,
@@ -786,10 +800,11 @@ a unified `{{ command_work_dir }}/state.json` with this schema:
 }
 ```
 
-These nine metric keys (`test_count`, `integration_tests_count`, `coverage_pct`, `failed_tests`,
+These nine metric keys (`unit_test_count`, `integration_tests_count`, `coverage_pct`, `failed_tests`,
 `complexity_avg`, `complexity_p75`, `complexity_p90`, `complexity_p99`, `linter_issues`) are the
 **canonical metric names**. Use them consistently in `state.json`, `log.tsv`, and all summaries.
-Do NOT use alternative names like `coverage_percent`, `warning_count`, `broken_test_count`, etc.
+Do NOT use alternative names like `test_count`, `coverage_percent`, `warning_count`, `broken_test_count`, etc.
+`unit_test_count` is the number of tests that run WITHOUT `APP_INTEGRATION_TESTS=true`.
 `integration_tests_count` is `0` when `testcontainers_enabled` is `false`.
 
 To compute complexity percentiles: collect the cyclomatic complexity of every function, sort the
@@ -953,7 +968,7 @@ Where:
 - `complexity_avg_reduction` = old complexity_avg - new complexity_avg (positive = better)
 - `linter_issues_reduction` = old linter_issues - new linter_issues (positive = better)
 
-`test_count_delta` is intentionally excluded from the score. More tests are only valuable when they produce coverage gains or catch real bugs — test count alone is not an improvement signal.
+`unit_test_count_delta` is intentionally excluded from the score. More tests are only valuable when they produce coverage gains or catch real bugs — test count alone is not an improvement signal.
 
 **IMPORTANT**: The composite score is only for tie-breaking and prioritization. It does NOT
 override the zero-regression rule from Section 4.5. Even if the composite score is positive,
@@ -1166,7 +1181,7 @@ Every **10 loops** (regardless of success/failure), print a brief summary:
 === Quality Guardian Summary (Loops 1-10) ===
 Successful commits: 7
 Discarded attempts: 3
-test_count:              89 → 91 (+2)
+unit_test_count:         89 → 91 (+2)
 integration_tests_count: 5 → 7 (+2)
 coverage_pct:            68.2 → 73.1 (+4.9)
 failed_tests:            3 → 0 (-3)
@@ -1196,7 +1211,7 @@ in `{{ command_work_dir }}/report.md`:
 ## Metrics Delta
 | Metric              | Before | After  | Delta  |
 |---------------------|--------|--------|--------|
-| test_count               | 89     | 134    | +45    |
+| unit_test_count          | 89     | 134    | +45    |
 | integration_tests_count  | 5      | 12     | +7     |
 | coverage_pct             | 68.2   | 81.7   | +13.5  |
 | failed_tests             | 3      | 0      | -3     |
@@ -1261,7 +1276,7 @@ while consecutive_failures < config.stagnation_stop_after:
 
     if not validate(hypothesis.category, baseline):   # includes integration tests if enabled
         discard_changes()
-        log(FAIL, hypothesis)
+        log(FAIL, baseline, hypothesis)               # log BASELINE metrics (changes rolled back)
         consecutive_failures += 1
         apply_anti_stagnation_rules(consecutive_failures)
         continue
@@ -1272,7 +1287,7 @@ while consecutive_failures < config.stagnation_stop_after:
     if any_metric_regressed(new_metrics, baseline):
         discard_changes()
         consecutive_failures += 1
-        log(REGRESSION_DISCARD, hypothesis)   # a regression is always a discard
+        log(CHANGES_DISCARDED, baseline, hypothesis)  # log BASELINE metrics (changes rolled back)
         apply_anti_stagnation_rules(consecutive_failures)
         continue
 
@@ -1281,11 +1296,11 @@ while consecutive_failures < config.stagnation_stop_after:
         update_changelog(hypothesis, baseline, new_metrics)
         baseline = new_metrics
         consecutive_failures = 0
-        log(SUCCESS, hypothesis)
+        log(SUCCESS, new_metrics, hypothesis)          # log NEW metrics (committed)
     else:
         discard_changes()
         consecutive_failures += 1
-        log(NO_IMPROVEMENT, hypothesis)
+        log(CHANGES_DISCARDED, baseline, hypothesis)  # log BASELINE metrics (no improvement)
         apply_anti_stagnation_rules(consecutive_failures)
 
     if loop_number % config.checkpoint_every_n_commits == 0:

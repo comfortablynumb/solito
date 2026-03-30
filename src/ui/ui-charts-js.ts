@@ -316,7 +316,8 @@ function buildStatusBadgeAndSummary(): string {
       'SUCCESS': 'bg-green-900/60 text-green-300',
       'FAIL': 'bg-red-900/60 text-red-300',
       'TIMEOUT': 'bg-amber-900/60 text-amber-300',
-      'CONNECTED': 'bg-blue-900/60 text-blue-300'
+      'CONNECTED': 'bg-blue-900/60 text-blue-300',
+      'CHANGES_DISCARDED': 'bg-orange-900/60 text-orange-300'
     };
     var upper = (status || '').toUpperCase();
     var cls = colors[upper] || 'bg-slate-700 text-slate-300';
@@ -704,7 +705,6 @@ function buildInstanceManagement(): string {
 
 function buildDashboardRefresh(): string {
   return `  function refreshDashboard() {
-    var scrollY = $(document).scrollTop();
     $.getJSON('/api/instances', function(instances) {
       var container = $('#instances-container');
       var countEl = $('#instance-count');
@@ -718,7 +718,6 @@ function buildDashboardRefresh(): string {
         noInstances.hide();
       } else {
         noInstances.show();
-        $(document).scrollTop(scrollY);
       }
 
       var needsNavUpdate = false;
@@ -744,8 +743,6 @@ function buildDashboardRefresh(): string {
           if (inst.command === 'build') {
             refreshBuildSpecs(sid, inst.command, metrics);
           }
-
-          $(document).scrollTop(scrollY);
         });
       });
 
@@ -830,7 +827,6 @@ function buildModalFunctions(): string {
 
 function buildTsvRefresh(): string {
   return `  function refreshTsvCommands() {
-    var scrollY = $(document).scrollTop();
     $.getJSON('/api/commands', function(commands) {
       if (!commands || commands.length === 0) return;
 
@@ -872,7 +868,6 @@ function buildTsvRefresh(): string {
           }
 
           updateVisibility();
-          $(document).scrollTop(scrollY);
         });
       });
     });
@@ -955,6 +950,8 @@ function buildSpecCharts(): string {
     return groups;
   }
 
+  var specChartKeysCreated = {};
+
   function renderSpecCharts(sid, reports) {
     var container = document.getElementById('inst-spec-charts-' + sid);
     if (!container) return;
@@ -967,44 +964,41 @@ function buildSpecCharts(): string {
     var allKeys = discoverMetricKeys(reports);
     if (allKeys.length === 0) { container.style.display = 'none'; return; }
 
-    var html = '<h3 class="text-sm font-semibold text-slate-300 mb-2">Per-Spec Metrics</h3>';
-    html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">';
+    var createdKey = sid;
+    var needsCreate = !specChartKeysCreated[createdKey];
 
-    for (var ki = 0; ki < allKeys.length; ki++) {
-      var metricKey = allKeys[ki];
-      var chartId = 'spec-chart-' + sid + '-' + metricKey;
-      html += '<div class="bg-slate-900/50 rounded-lg p-3 border border-slate-700">';
-      html += '<div class="text-sm text-slate-400 mb-2">' + formatLabel(metricKey) + ' by Spec</div>';
-      html += '<div style="height:220px;"><canvas id="' + chartId + '"></canvas></div>';
+    if (needsCreate) {
+      var html = '<h3 class="text-sm font-semibold text-slate-300 mb-2">Per-Spec Metrics</h3>';
+      html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-4" id="spec-charts-grid-' + sid + '">';
+
+      for (var ki = 0; ki < allKeys.length; ki++) {
+        var metricKey = allKeys[ki];
+        var chartId = 'spec-chart-' + sid + '-' + metricKey;
+        html += '<div class="bg-slate-900/50 rounded-lg p-3 border border-slate-700">';
+        html += '<div class="text-sm text-slate-400 mb-2">' + formatLabel(metricKey) + ' by Spec</div>';
+        html += '<div style="height:220px;"><canvas id="' + chartId + '"></canvas></div>';
+        html += '</div>';
+      }
+
       html += '</div>';
+      container.innerHTML = html;
+      specChartKeysCreated[createdKey] = allKeys.slice();
     }
-
-    html += '</div>';
-    container.innerHTML = html;
 
     for (var ki2 = 0; ki2 < allKeys.length; ki2++) {
       var key = allKeys[ki2];
       var cid = 'spec-chart-' + sid + '-' + key;
-      renderMultiSpecChart(cid, key, specNames, groups);
+      updateMultiSpecChart(cid, key, specNames, groups);
     }
   }
 
-  function renderMultiSpecChart(canvasId, metricKey, specNames, groups) {
-    if (specChartInstances[canvasId]) {
-      specChartInstances[canvasId].destroy();
-      delete specChartInstances[canvasId];
-    }
-
-    var ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-
+  function updateMultiSpecChart(canvasId, metricKey, specNames, groups) {
     var datasets = [];
 
     for (var i = 0; i < specNames.length; i++) {
       var spec = specNames[i];
       var color = CHART_COLORS[i % CHART_COLORS.length];
       var data = groups[spec].map(function(r) { return (r.metrics || {})[metricKey] || 0; });
-      var labels = groups[spec].map(function(r) { return 'Loop ' + r.loop; });
 
       datasets.push({
         label: spec.replace(/\\.md$/, ''),
@@ -1020,6 +1014,17 @@ function buildSpecCharts(): string {
     datasets.forEach(function(ds) { if (ds.data.length > maxLen) maxLen = ds.data.length; });
     var chartLabels = [];
     for (var j = 0; j < maxLen; j++) chartLabels.push('Loop ' + (j + 1));
+
+    if (specChartInstances[canvasId]) {
+      var chart = specChartInstances[canvasId];
+      chart.data.labels = chartLabels;
+      chart.data.datasets = datasets;
+      chart.update();
+      return;
+    }
+
+    var ctx = document.getElementById(canvasId);
+    if (!ctx) return;
 
     specChartInstances[canvasId] = new Chart(ctx, {
       type: 'line',

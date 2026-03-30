@@ -124,7 +124,7 @@ Run the full metrics collection described in Section 9 and fill in the metric va
   "total_loops": 0,
   "total_commits": 0,
   "timestamp": "2026-03-10T14:30:00Z",
-  "test_count": 0,
+  "unit_test_count": 0,
   "integration_tests_count": 0,
   "coverage_pct": 0,
   "failed_tests": 0,
@@ -168,7 +168,7 @@ The `specs_status` field maps spec filenames to objects with `status`, `hash`, a
 Create `{{ command_work_dir }}/log.tsv` with this header:
 
 ```
-loop	status	test_count	integration_tests_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
+loop	status	unit_test_count	integration_tests_count	coverage_pct	failed_tests	complexity_avg	complexity_p75	complexity_p90	complexity_p99	linter_issues	description
 ```
 
 Record the baseline as loop 0.
@@ -472,8 +472,9 @@ git checkout -- .
 git clean -fd
 ```
 
-Log the failure in `{{ command_work_dir }}/log.tsv` with `status=FAIL`, increment
-`consecutive_failures` in state, then go back to step 4.1 with a different approach.
+Log the failure in `{{ command_work_dir }}/log.tsv` with `status=FAIL` and the **baseline metric
+values** from `state.json` (since changes were rolled back). Increment `consecutive_failures` in
+state, then go back to step 4.1 with a different approach.
 
 ### 4.6 Measure
 
@@ -494,6 +495,10 @@ Run the full metrics collection (Section 9). Compare against the last committed 
 - **Priority 2**: Complexity decreased
 
 At least one must improve. If neither improved, discard — the change is useless.
+
+**Discard** means: `git checkout -- . && git clean -fd`, log `status=CHANGES_DISCARDED` with
+the **baseline metric values** from `state.json` (since the changes are rolled back, the
+codebase state matches the baseline). Do NOT log the metrics from the discarded changes.
 
 On commit:
 
@@ -540,6 +545,11 @@ On every successful commit, **prepend** an entry to `{{ command_work_dir }}/chan
 
 Append a row to `{{ command_work_dir }}/log.tsv` with all fields filled. Increment `total_loops`
 in state.
+
+**Metric values by status:**
+- `status=SUCCESS` → log the **new** metrics (just committed)
+- `status=CHANGES_DISCARDED` → log the **baseline** metrics from `state.json` (changes rolled back)
+- `status=FAIL` → log the **baseline** metrics from `state.json` (validation failed, changes rolled back)
 
 ---
 
@@ -863,7 +873,7 @@ fields in `{{ command_work_dir }}/state.json` using the **canonical metric names
 ```json
 {
   "timestamp": "2026-03-10T14:30:00Z",
-  "test_count": 142,
+  "unit_test_count": 142,
   "integration_tests_count": 8,
   "coverage_pct": 72.5,
   "failed_tests": 3,
@@ -875,11 +885,12 @@ fields in `{{ command_work_dir }}/state.json` using the **canonical metric names
 }
 ```
 
-These nine metric keys (`test_count`, `integration_tests_count`, `coverage_pct`, `failed_tests`,
+These nine metric keys (`unit_test_count`, `integration_tests_count`, `coverage_pct`, `failed_tests`,
 `complexity_avg`, `complexity_p75`, `complexity_p90`, `complexity_p99`, `linter_issues`) are the
 **canonical metric names**. Use them consistently in `state.json`, `log.tsv`, and all summaries.
-Do NOT use alternative names like `coverage_percent`, `warning_count`, `avg_cyclomatic_complexity`.
+Do NOT use alternative names like `test_count`, `coverage_percent`, `warning_count`, `avg_cyclomatic_complexity`.
 
+`unit_test_count` is the number of tests that run WITHOUT `APP_INTEGRATION_TESTS=true`.
 `integration_tests_count` is the number of integration tests (gated on `APP_INTEGRATION_TESTS=true`).
 Set to `0` when `testcontainers_enabled` is `false`.
 
